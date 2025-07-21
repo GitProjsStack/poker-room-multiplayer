@@ -2,7 +2,7 @@ const rooms = {};
 
 function createRoom(roomCode, hostId, hostName) {
   rooms[roomCode] = {
-    players: [{ id: hostId, name: hostName, isHost: true }],
+    players: [{ id: hostId, name: hostName, isHost: true, chipBalance: 1000 }],
     gameStarted: false
   };
 }
@@ -14,7 +14,7 @@ function joinRoom(roomCode, playerId, playerName) {
 
   const alreadyInRoom = room.players.some(p => p.id === playerId);
   if (!alreadyInRoom) {
-    room.players.push({ id: playerId, name: playerName, isHost: false });
+    room.players.push({ id: playerId, name: playerName, isHost: false, chipBalance: 1000 });
   }
 
   return {};
