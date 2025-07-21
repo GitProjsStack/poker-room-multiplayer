@@ -1,6 +1,7 @@
 const {
   createRoom,
   joinRoom,
+  startGame,
   roomExists,
   getRoomPlayers,
   removePlayer
@@ -21,9 +22,16 @@ module.exports = (io, socket) => {
 
     socket.join(roomCode);
     const players = getRoomPlayers(roomCode);
-
     io.to(roomCode).emit('room_update', players);
     console.log(`👤 ${playerName} joined room ${roomCode}`);
+  });
+
+  socket.on('start_game', (roomCode) => {
+    const success = startGame(roomCode);
+    if (success) {
+      io.to(roomCode).emit('game_started');
+      console.log(`🎮 Game started in room ${roomCode}`);
+    }
   });
 
   socket.on('disconnect', () => {

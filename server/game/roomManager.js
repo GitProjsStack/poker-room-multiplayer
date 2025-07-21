@@ -2,21 +2,30 @@ const rooms = {};
 
 function createRoom(roomCode, hostId, hostName) {
   rooms[roomCode] = {
-    hostId,
-    players: [
-      { id: hostId, name: hostName, chips: 1000, isHost: true }
-    ]
+    players: [{ id: hostId, name: hostName, isHost: true }],
+    gameStarted: false
   };
 }
 
 function joinRoom(roomCode, playerId, playerName) {
   const room = rooms[roomCode];
+  if (!room) return { error: 'Room does not exist' };
+  if (room.gameStarted) return { error: 'Game already started in this room' };
 
-  if (!room) return { error: "Room not found." };
-  if (room.players.length >= 6) return { error: "Room is full." };
+  const alreadyInRoom = room.players.some(p => p.id === playerId);
+  if (!alreadyInRoom) {
+    room.players.push({ id: playerId, name: playerName, isHost: false });
+  }
 
-  room.players.push({ id: playerId, name: playerName, chips: 1000, isHost: false });
-  return { success: true };
+  return {};
+}
+
+function startGame(roomCode) {
+  if (rooms[roomCode]) {
+    rooms[roomCode].gameStarted = true;
+    return true;
+  }
+  return false;
 }
 
 function getRoomPlayers(roomCode) {
@@ -24,16 +33,16 @@ function getRoomPlayers(roomCode) {
 }
 
 function roomExists(roomCode) {
-  return !!rooms[roomCode];
+  return Boolean(rooms[roomCode]);
 }
 
 function removePlayer(socketId) {
-  for (const code in rooms) {
-    const room = rooms[code];
-    room.players = room.players.filter(p => p.id !== socketId);
+  for (const roomCode in rooms) {
+    const room = rooms[roomCode];
+    room.players = room.players.filter((p) => p.id !== socketId);
 
     if (room.players.length === 0) {
-      delete rooms[code]; // cleanup empty room
+      delete rooms[roomCode];
     }
   }
 }
@@ -41,7 +50,8 @@ function removePlayer(socketId) {
 module.exports = {
   createRoom,
   joinRoom,
-  roomExists,
+  startGame,
   getRoomPlayers,
-  removePlayer
+  roomExists,
+  removePlayer,
 };
