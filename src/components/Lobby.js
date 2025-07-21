@@ -1,11 +1,10 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { SocketContext } from '../context/SocketContext';
 
-function Lobby() {
+function Lobby({ setPlayers, setRoomCode, setIsHost, setInRoom }) {
   const socket = useContext(SocketContext);
   const [name, setName] = useState('');
   const [room, setRoom] = useState('');
-  const [players, setPlayers] = useState([]);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
 
@@ -19,9 +18,13 @@ function Lobby() {
 
   useEffect(() => {
     socket.on('room_update', (playerList) => {
-      setPlayers(playerList);
       const currentPlayer = playerList.find((p) => p.id === socket.id);
       const isHost = currentPlayer?.isHost;
+
+      setPlayers(playerList);
+      setRoomCode(room);
+      setIsHost(isHost);
+      setInRoom(true);
 
       setStatus(
         isHost
@@ -40,7 +43,7 @@ function Lobby() {
       socket.off('room_update');
       socket.off('join_error');
     };
-  }, [socket, room]);
+  }, [socket, room, setPlayers, setRoomCode, setIsHost, setInRoom]);
 
   return (
     <div className="lobby">
@@ -63,23 +66,8 @@ function Lobby() {
       />
       <button onClick={joinRoom}>Join or Create Room</button>
 
-      {/* Status or error messages */}
       {status && <p style={{ color: 'lightgreen', marginTop: '10px' }}>{status}</p>}
       {error && <p style={{ color: 'red', marginTop: '10px' }}>{error}</p>}
-
-      {/* Player List */}
-      {players.length > 0 && (
-        <div style={{ marginTop: '20px' }}>
-          <h3>Players in Room:</h3>
-          <ul>
-            {players.map((p) => (
-              <li key={p.id}>
-                {p.name} {p.isHost && '(Host)'}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }
