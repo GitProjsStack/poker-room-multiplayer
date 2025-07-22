@@ -2,6 +2,7 @@ const {
   createRoom,
   joinRoom,
   startGame,
+  getPlayerHand,
   roomExists,
   getRoomPlayers,
   removePlayer
@@ -22,13 +23,20 @@ module.exports = (io, socket) => {
 
     socket.join(roomCode);
     const players = getRoomPlayers(roomCode);
+    console.log(`Room update for ${roomCode}:`, players);
     io.to(roomCode).emit('room_update', players);
     console.log(`👤 ${playerName} joined room ${roomCode}`);
   });
 
-  socket.on('start_game', (roomCode) => {
-    const success = startGame(roomCode);
+  socket.on('start_game', async (roomCode) => {
+    const success = await startGame(roomCode);
     if (success) {
+      const players = getRoomPlayers(roomCode);
+      for (const player of players) {
+        const hand = getPlayerHand(roomCode, player.id);
+        io.to(player.id).emit('deal_hand', hand);
+      }
+
       io.to(roomCode).emit('game_started');
       console.log(`🎮 Game started in room ${roomCode}`);
     }

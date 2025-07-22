@@ -4,8 +4,9 @@ import { SocketContext } from '../context/SocketContext';
 function Room({ players, roomCode, isHost }) {
   const socket = useContext(SocketContext);
   const [gameStarted, setGameStarted] = useState(false);
-  const [betSize, setBetSize] = useState(2); // 2 to start the game - known as the 'Ante' or the 'buy-in'
+  const [betSize, setBetSize] = useState(2);
   const [playerBet, setPlayerBet] = useState(0);
+  const [hand, setHand] = useState([]);
 
   const currentPlayer = players.find((p) => p.id === socket.id);
   const chipBalance = currentPlayer?.chipBalance ?? 0;
@@ -24,10 +25,15 @@ function Room({ players, roomCode, isHost }) {
       setPlayerBet(bet);
     });
 
+    socket.on('deal_hand', (cards) => {
+      setHand(cards);
+    });
+
     return () => {
       socket.off('game_started');
       socket.off('update_bet_size');
       socket.off('update_player_bet');
+      socket.off('deal_hand');
     };
   }, [socket]);
 
@@ -67,12 +73,11 @@ function Room({ players, roomCode, isHost }) {
           </div>
 
           <div className="player-info">
-
-                {/** Show player cards below */}
-              <div className="hand">
-                <img src="/card-back.png" alt="Card 1" />
-                <img src="/card-back.png" alt="Card 2" />
-              </div>
+            <div className="hand">
+              {hand.map((card) => (
+                <img key={card.code} src={card.image} alt={card.code} />
+              ))}
+            </div>
 
             <p>Your Chip Balance: {chipBalance}</p>
             <p>Current Bet Size to Call: {betSize}</p>

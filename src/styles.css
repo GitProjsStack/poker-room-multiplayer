@@ -96,6 +96,12 @@ button:disabled {
   margin-top: 8px;
 }
 
+.hand img {
+  height: 200px;
+  border-radius: 6px;
+  box-shadow: 0 0 5px rgba(0,0,0,0.3);
+}
+
 .player-actions {
   display: flex;
   gap: 10px;

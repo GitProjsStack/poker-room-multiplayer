@@ -1,49 +1,16 @@
-import React, { useContext, useState, useEffect } from 'react';
-import { SocketContext } from '../context/SocketContext';
+import React, { useState } from 'react';
 
-function Lobby({ setPlayers, setRoomCode, setIsHost, setInRoom }) {
-  const socket = useContext(SocketContext);
+function Lobby({ onJoinRoom }) {
   const [name, setName] = useState('');
   const [room, setRoom] = useState('');
-  const [error, setError] = useState('');
-  const [status, setStatus] = useState('');
 
-  const joinRoom = () => {
-    if (name && room) {
-      socket.emit('join_room', room, name);
-      setStatus(`Attempting to join room ${room}...`);
-      setError('');
+  const handleJoin = () => {
+    if (!name.trim() || !room.trim()) {
+      alert('Please enter your name and room code');
+      return;
     }
+    onJoinRoom(room.toUpperCase(), name.trim());
   };
-
-  useEffect(() => {
-    socket.on('room_update', (playerList) => {
-      const currentPlayer = playerList.find((p) => p.id === socket.id);
-      const isHost = currentPlayer?.isHost;
-
-      setPlayers(playerList);
-      setRoomCode(room);
-      setIsHost(isHost);
-      setInRoom(true);
-
-      setStatus(
-        isHost
-          ? `✅ Room ${room} created. You're the host.`
-          : `✅ Joined room ${room}.`
-      );
-      setError('');
-    });
-
-    socket.on('join_error', (errMsg) => {
-      setError(errMsg);
-      setStatus('');
-    });
-
-    return () => {
-      socket.off('room_update');
-      socket.off('join_error');
-    };
-  }, [socket, room, setPlayers, setRoomCode, setIsHost, setInRoom]);
 
   return (
     <div className="lobby">
@@ -64,10 +31,7 @@ function Lobby({ setPlayers, setRoomCode, setIsHost, setInRoom }) {
         value={room}
         onChange={(e) => setRoom(e.target.value.toUpperCase())}
       />
-      <button onClick={joinRoom}>Join or Create Room</button>
-
-      {status && <p style={{ color: 'lightgreen', marginTop: '10px' }}>{status}</p>}
-      {error && <p style={{ color: 'red', marginTop: '10px' }}>{error}</p>}
+      <button onClick={handleJoin}>Join or Create Room</button>
     </div>
   );
 }
