@@ -5,7 +5,9 @@ function Room({ players, roomCode, isHost }) {
   const socket = useContext(SocketContext);
   const [gameStarted, setGameStarted] = useState(false);
   const [betSize, setBetSize] = useState(2);
-  const [playerBet, setPlayerBet] = useState(0);
+  const [currentTurnPlayerId, setCurrentTurnPlayerId] = useState('');
+  const [currentTurnPlayerName, setCurrentTurnPlayerName] = useState('');
+  const [isYourTurn, setIsYourTurn] = useState(false);
   const [hand, setHand] = useState([]);
   const [errorMsg, setErrorMsg] = useState('');
   const [isFolded, setIsFolded] = useState(false);
@@ -19,18 +21,23 @@ function Room({ players, roomCode, isHost }) {
   useEffect(() => {
     socket.on('game_started', () => {
       setGameStarted(true);
-      setPlayerBet(0);
       setIsFolded(false);
       setErrorMsg('');
       setMessage('');
     });
 
-    socket.on('update_bet_size', (newBetSize) => {
-      setBetSize(newBetSize);
+    socket.on('your_turn', () => {
+      setIsYourTurn(true);
     });
 
-    socket.on('update_player_bet', (bet) => {
-      setPlayerBet(bet);
+    socket.on('current_turn', ({ playerId, playerName }) => {
+      setCurrentTurnPlayerId(playerId);
+      setCurrentTurnPlayerName(playerName);
+      setIsYourTurn(playerId === socket.id);
+    });
+
+    socket.on('update_bet_size', (newBetSize) => {
+      setBetSize(newBetSize);
     });
 
     socket.on('deal_hand', (cards) => {
@@ -48,8 +55,9 @@ function Room({ players, roomCode, isHost }) {
 
     return () => {
       socket.off('game_started');
+      socket.off('your_turn');
+      socket.off('current_turn');
       socket.off('update_bet_size');
-      socket.off('update_player_bet');
       socket.off('deal_hand');
       socket.off('update_pot');
       socket.off('round_winner');
@@ -67,8 +75,7 @@ function Room({ players, roomCode, isHost }) {
   };
 
   const call = () => {
-    const toCall = betSize - playerBet;
-    if (chipBalance < toCall) {
+    if (chipBalance < betSize) {
       setErrorMsg("Not enough chips to call.");
       return;
     }
@@ -77,14 +84,11 @@ function Room({ players, roomCode, isHost }) {
   };
 
   const raise = (amount) => {
-    const toCall = betSize - playerBet;
-    const totalCost = toCall + amount;
-
+    const totalCost = betSize + amount;
     if (chipBalance < totalCost) {
       setErrorMsg(`You need ${totalCost} chips to call + raise ${amount}, but only have ${chipBalance}.`);
       return;
     }
-
     const newBetSize = betSize + amount;
     socket.emit('raise_bet', roomCode, newBetSize);
     setErrorMsg('');
@@ -95,6 +99,14 @@ function Room({ players, roomCode, isHost }) {
   return (
     <div className="room">
       <h2>Hello {currentPlayer?.name}. You are in room '{roomCode}'</h2>
+
+      <p style={{ fontWeight: 'bold', color: 'orange' }}>
+        {gameStarted && (isYourTurn
+          ? "🎯 It's your turn!"
+          : currentTurnPlayerName
+          ? `🕒 Waiting for ${currentTurnPlayerName}...`
+          : '')}
+      </p>
 
       {!gameStarted && isHost && (
         <button className="btn start-btn" onClick={startGame}>
@@ -118,7 +130,6 @@ function Room({ players, roomCode, isHost }) {
 
               Your Chip Balance: {chipBalance}<br />
               Current Bet Size to Call: {betSize}<br />
-              Your Current Bet: {playerBet}<br />
               Total Pot: {pot}<br />
 
               {message && <p style={{ color: 'limegreen' }}>{message}</p>}
@@ -131,14 +142,14 @@ function Room({ players, roomCode, isHost }) {
               <button
                 className="btn btn-red"
                 onClick={fold}
-                disabled={isFolded || isNextRound}
+                disabled={isFolded || isNextRound || !isYourTurn}
               >
                 Fold
               </button>
               <button
                 className="btn btn-green"
                 onClick={call}
-                disabled={chipBalance < betSize - playerBet || isFolded || isNextRound}
+                disabled={chipBalance < betSize || isFolded || isNextRound || !isYourTurn}
               >
                 Call
               </button>
@@ -150,7 +161,7 @@ function Room({ players, roomCode, isHost }) {
                   key={amt}
                   className="btn btn-blue"
                   onClick={() => raise(amt)}
-                  disabled={chipBalance < (betSize - playerBet + amt) || isFolded || isNextRound}
+                  disabled={chipBalance < (betSize + amt) || isFolded || isNextRound || !isYourTurn}
                 >
                   Raise by {amt}
                 </button>

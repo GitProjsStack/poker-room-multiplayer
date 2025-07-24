@@ -41,7 +41,7 @@ module.exports = (io, socket) => {
       io.to(roomCode).emit('game_started');
       io.to(roomCode).emit('room_update', room.players);
       io.to(roomCode).emit('update_pot', room.pot);
-      io.to(room.players[room.currentTurnIndex].id).emit('your_turn');
+      sendTurnInfo(roomCode);
       console.log(`🎮 Game started in room ${roomCode}`);
     }
   });
@@ -133,11 +133,21 @@ module.exports = (io, socket) => {
 
     room.currentTurnIndex = nextIndex;
     io.to(roomCode).emit('room_update', room.players);
-    io.to(room.players[nextIndex].id).emit('your_turn');
+
+    sendTurnInfo(roomCode);
   }
 
-  socket.on('disconnect', () => {
-    console.log(`❌ ${socket.id} disconnected`);
-    removePlayer(socket.id);
-  });
+  function sendTurnInfo(roomCode) {
+    const room = getRoom(roomCode);
+    if (!room) return;
+
+    const currentPlayer = room.players[room.currentTurnIndex];
+
+    io.to(roomCode).emit('current_turn', {
+      playerId: currentPlayer.id,
+      playerName: currentPlayer.name,
+    });
+
+    io.to(currentPlayer.id).emit('your_turn');
+  }
 };
