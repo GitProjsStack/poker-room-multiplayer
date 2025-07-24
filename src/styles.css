@@ -107,3 +107,24 @@ button:disabled {
   gap: 10px;
   margin-top: 10px;
 }
+
+.btn-red {
+  background-color: #d9534f;
+}
+.btn-red:hover:not(:disabled) {
+  background-color: #c9302c;
+}
+
+.btn-green {
+  background-color: #5cb85c;
+}
+.btn-green:hover:not(:disabled) {
+  background-color: #449d44;
+}
+
+.btn-blue {
+  background-color: #0275d8;
+}
+.btn-blue:hover:not(:disabled) {
+  background-color: #025aa5;
+}
