@@ -4,10 +4,15 @@ const rooms = {};
 
 async function createRoom(roomCode, hostId, hostName) {
   rooms[roomCode] = {
-    players: [{ id: hostId, name: hostName, isHost: true, chipBalance: 1000 }],
+    players: [{ id: hostId, name: hostName, isHost: true, chipBalance: 1000, folded: false, bet: 0 }],
     gameStarted: false,
     deckId: null,
     hands: {},
+    dealerIndex: 0,
+    pot: 0,
+    betSize: 0,
+    currentTurnIndex: 0,
+    waitingForInitialCalls: true,
   };
 }
 
@@ -18,7 +23,7 @@ function joinRoom(roomCode, playerId, playerName) {
 
   const alreadyInRoom = room.players.some(p => p.id === playerId);
   if (!alreadyInRoom) {
-    room.players.push({ id: playerId, name: playerName, isHost: false, chipBalance: 1000 });
+    room.players.push({ id: playerId, name: playerName, isHost: false, chipBalance: 1000, folded: false, bet: 0 });
   }
 
   return {};
@@ -29,12 +34,10 @@ async function startGame(roomCode) {
   if (!room) return false;
 
   try {
-    // Get a new deck
     const res = await axios.get('https://deckofcardsapi.com/api/deck/new/shuffle/?deck_count=1');
     const deckId = res.data.deck_id;
     room.deckId = deckId;
 
-    // Deal 2 cards to each player
     const count = room.players.length * 2;
     const drawRes = await axios.get(`https://deckofcardsapi.com/api/deck/${deckId}/draw/?count=${count}`);
     const cards = drawRes.data.cards;
@@ -42,9 +45,15 @@ async function startGame(roomCode) {
     room.hands = {};
     room.players.forEach((player, index) => {
       room.hands[player.id] = [cards[index * 2], cards[index * 2 + 1]];
+      player.bet = 0;
+      player.folded = false;
     });
 
     room.gameStarted = true;
+    room.waitingForInitialCalls = true;
+    room.currentTurnIndex = 0;
+    room.pot = 0;
+    room.betSize = 2; // initial buy-in
     return true;
   } catch (err) {
     console.error('Failed to start game:', err.message);
@@ -76,6 +85,10 @@ function removePlayer(socketId) {
   }
 }
 
+function getRoom(roomCode) {
+  return rooms[roomCode];
+}
+
 module.exports = {
   createRoom,
   joinRoom,
@@ -84,4 +97,5 @@ module.exports = {
   getRoomPlayers,
   roomExists,
   removePlayer,
+  getRoom,
 };
