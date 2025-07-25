@@ -7,9 +7,9 @@ const {
   roomExists,
   getRoom,
   removePlayer,
-  haveAllActed,
+  getActivePlayers,
   advanceLoop,
-  } = require('../game/roomManager');
+} = require('../game/roomManager');
 
 module.exports = (io, socket) => {
   socket.on('join_room', (roomCode, playerName) => {
@@ -39,10 +39,7 @@ module.exports = (io, socket) => {
         io.to(player.id).emit('deal_hand', hand);
       }
 
-      const room = getRoom(roomCode);
-      io.to(roomCode).emit('game_started');
-      io.to(roomCode).emit('room_update', room.players);
-      io.to(roomCode).emit('update_pot', room.pot);
+      updateRoom(roomCode);
       sendTurnInfo(roomCode);
       console.log(`🎮 Game started in room ${roomCode}`);
     }
@@ -55,16 +52,27 @@ module.exports = (io, socket) => {
     const player = room.players.find(p => p.id === socket.id);
     if (!player || player.folded) return;
 
+    if (player.hasActed) {
+      console.log(`[BLOCKED] ${player.name} already acted this loop`);
+      return;
+    }
+
     const toCall = room.betSize - player.bet;
+
     if (toCall > 0 && player.chipBalance >= toCall) {
       player.chipBalance -= toCall;
       player.bet += toCall;
       room.pot += toCall;
-
       io.to(roomCode).emit('update_pot', room.pot);
     }
 
-    updateLoopAndTurn(roomCode, player);
+    player.hasActed = true;
+
+    if (shouldAdvanceLoop(room)) {
+      advanceLoop(room, io, roomCode);
+    } else {
+      advanceTurn(roomCode);
+    }
   });
 
   socket.on('raise_bet', (roomCode, newBetSize) => {
@@ -74,26 +82,38 @@ module.exports = (io, socket) => {
     const player = room.players.find(p => p.id === socket.id);
     if (!player || player.folded) return;
 
-    if (newBetSize % 5 !== 0 || newBetSize <= room.betSize) return;
-
-    const toCall = room.betSize - player.bet;
-    const raiseAmount = newBetSize - room.betSize;
-    const totalCost = toCall + raiseAmount;
-
-    if (player.chipBalance >= totalCost) {
-      player.chipBalance -= totalCost;
-      player.bet += totalCost;
-      room.betSize = newBetSize;
-      room.pot += totalCost;
-
-      io.to(roomCode).emit('update_bet_size', newBetSize);
-      io.to(roomCode).emit('update_pot', room.pot);
+    if (player.hasActed) {
+      console.log(`[BLOCKED] ${player.name} already acted this loop`);
+      return;
     }
 
-    updateLoopAndTurn(roomCode, player);
+    const currentBet = player.bet;
+    const callAmount = Math.max(0, room.betSize - currentBet);
+    const raiseAmount = newBetSize - room.betSize;
+    const totalContribution = callAmount + raiseAmount;
+
+    if (raiseAmount <= 0 || player.chipBalance < totalContribution) return;
+
+    // Deduct and update state
+    player.chipBalance -= totalContribution;
+    player.bet += totalContribution;
+    room.pot += totalContribution;
+    room.betSize = newBetSize;
+
+    // Update last aggressor
+    room.lastAggressorIndex = room.players.findIndex(p => p.id === socket.id);
+
+    resetHasActed(room);
+    player.hasActed = true;
+
+    io.to(roomCode).emit('update_bet_size', room.betSize);
+    io.to(roomCode).emit('update_pot', room.pot);
+    io.to(roomCode).emit('room_update', room.players);
+
+    advanceTurn(roomCode);
   });
 
-    socket.on('fold', async (roomCode) => {
+  socket.on('fold', async (roomCode) => {
     const room = getRoom(roomCode);
     if (!room) return;
 
@@ -102,9 +122,9 @@ module.exports = (io, socket) => {
 
     player.folded = true;
 
-    const remainingPlayers = room.players.filter(p => !p.folded);
-    if (remainingPlayers.length === 1) {
-      const winner = remainingPlayers[0];
+    const remaining = room.players.filter(p => !p.folded);
+    if (remaining.length === 1) {
+      const winner = remaining[0];
       winner.chipBalance += room.pot;
 
       io.to(roomCode).emit('round_winner', {
@@ -116,30 +136,28 @@ module.exports = (io, socket) => {
       io.to(roomCode).emit('update_pot', 0);
       io.to(roomCode).emit('room_update', room.players);
 
-      // Start new round after short delay
       setTimeout(async () => {
-        const res = await startGame(roomCode);
-        if (res) {
+        const success = await startGame(roomCode);
+        if (success) {
           const players = getRoomPlayers(roomCode);
           for (const p of players) {
             const hand = getPlayerHand(roomCode, p.id);
             io.to(p.id).emit('deal_hand', hand);
           }
-
-          const room = getRoom(roomCode);
-          room.loopNum += 1;
-          io.to(roomCode).emit('new_loop', room.loopNum);
-          io.to(roomCode).emit('game_started');
-          io.to(roomCode).emit('room_update', room.players);
-          io.to(roomCode).emit('update_pot', room.pot);
+          updateRoom(roomCode);
           sendTurnInfo(roomCode);
           console.log(`🔄 New round started in room ${roomCode}`);
         }
-      }, 3000); // Delay for clarity/UI feedback
+      }, 3000);
+
       return;
     }
 
-    advanceTurn(roomCode);
+    if (shouldAdvanceLoop(room)) {
+      advanceLoop(room, io, roomCode);
+    } else {
+      advanceTurn(roomCode);
+    }
   });
 
   socket.on('disconnect', () => {
@@ -151,45 +169,76 @@ module.exports = (io, socket) => {
     const room = getRoom(roomCode);
     if (!room) return;
 
+    const totalPlayers = room.players.length;
     let nextIndex = room.currentTurnIndex;
     let attempts = 0;
 
+    // Find next player who is not folded and has chips
     do {
-      nextIndex = (nextIndex + 1) % room.players.length;
+      nextIndex = (nextIndex + 1) % totalPlayers;
       attempts++;
-    } while (room.players[nextIndex].folded && attempts < room.players.length);
+    } while (
+      (room.players[nextIndex].folded || room.players[nextIndex].chipBalance === 0) &&
+      attempts < totalPlayers
+    );
 
     room.currentTurnIndex = nextIndex;
-    io.to(roomCode).emit('room_update', room.players);
 
-    sendTurnInfo(roomCode);
+    const activePlayers = getActivePlayers(room);
+    const allMatched = activePlayers.every(p => p.bet === room.betSize);
+    const isBackToAggressor = nextIndex === room.lastAggressorIndex;
+
+    // 💡 Critical Fix:
+    const everyoneElseActed = activePlayers.every(p => p.hasActed || p.id === room.players[room.lastAggressorIndex].id);
+
+    console.log(`[TURN] ${room.players[nextIndex].name}'s turn`);
+    console.log(`[CHECK] allMatched=${allMatched}, everyoneElseActed=${everyoneElseActed}, backToAggressor=${isBackToAggressor}`);
+
+    if (allMatched && everyoneElseActed && isBackToAggressor) {
+      console.log(`[LOOP ✅] Advancing loop`);
+      sendTurnInfo(roomCode); // Update UI first
+      setTimeout(() => advanceLoop(room, io, roomCode), 300);
+    } else {
+      sendTurnInfo(roomCode);
+    }
+
+    io.to(roomCode).emit('room_update', room.players);
+  }
+
+  function shouldAdvanceLoop(room) {
+    const activePlayers = getActivePlayers(room);
+
+    const allMatched = activePlayers.every(p => p.bet === room.betSize);
+    const isBackToAggressor = room.currentTurnIndex === room.lastAggressorIndex;
+    const aggressorHasActed = room.players[room.lastAggressorIndex]?.hasActed;
+
+    return allMatched && isBackToAggressor && aggressorHasActed;
+  }
+
+  function resetHasActed(room) {
+    room.players.forEach(p => p.hasActed = false);
   }
 
   function sendTurnInfo(roomCode) {
     const room = getRoom(roomCode);
     if (!room) return;
 
-    const currentPlayer = room.players[room.currentTurnIndex];
-
+    const current = room.players[room.currentTurnIndex];
     io.to(roomCode).emit('current_turn', {
-      playerId: currentPlayer.id,
-      playerName: currentPlayer.name,
+      playerId: current.id,
+      playerName: current.name,
     });
-
-    io.to(currentPlayer.id).emit('your_turn');
+    io.to(current.id).emit('your_turn');
   }
 
-  function updateLoopAndTurn(roomCode, player) {
+  function updateRoom(roomCode) {
     const room = getRoom(roomCode);
-    if (!room || player.folded) return;
+    if (!room) return;
 
-    room.actedPlayerIds.add(player.id);
-
-    if (haveAllActed(room)) {
-      advanceLoop(room, io, roomCode);
-    }
-
-    advanceTurn(roomCode);
+    io.to(roomCode).emit('new_loop', room.loopNum);
+    io.to(roomCode).emit('game_started');
+    io.to(roomCode).emit('room_update', room.players);
+    io.to(roomCode).emit('update_pot', room.pot);
+    io.to(roomCode).emit('update_bet_size', room.betSize);
   }
-
 };
