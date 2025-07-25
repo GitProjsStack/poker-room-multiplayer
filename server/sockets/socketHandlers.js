@@ -173,7 +173,7 @@ module.exports = (io, socket) => {
     let nextIndex = room.currentTurnIndex;
     let attempts = 0;
 
-    // Find next non-folded player
+    // Find next player who is not folded and has chips
     do {
       nextIndex = (nextIndex + 1) % totalPlayers;
       attempts++;
@@ -185,18 +185,19 @@ module.exports = (io, socket) => {
     room.currentTurnIndex = nextIndex;
 
     const activePlayers = getActivePlayers(room);
-
     const allMatched = activePlayers.every(p => p.bet === room.betSize);
-    const allActed = activePlayers.every(p => p.hasActed);
     const isBackToAggressor = nextIndex === room.lastAggressorIndex;
 
-    console.log(`[TURN] ${room.players[nextIndex].name}'s turn`);
-    console.log(`[CHECK] allMatched=${allMatched}, allActed=${allActed}, backToAggressor=${isBackToAggressor}`);
+    // 💡 Critical Fix:
+    const everyoneElseActed = activePlayers.every(p => p.hasActed || p.id === room.players[room.lastAggressorIndex].id);
 
-    if (allMatched && allActed && isBackToAggressor) {
-      console.log(`[LOOP] Advancing loop`);
-      sendTurnInfo(roomCode);  // Force turn info before advancing
-      setTimeout(() => advanceLoop(room, io, roomCode), 300); // Small delay ensures UI updates
+    console.log(`[TURN] ${room.players[nextIndex].name}'s turn`);
+    console.log(`[CHECK] allMatched=${allMatched}, everyoneElseActed=${everyoneElseActed}, backToAggressor=${isBackToAggressor}`);
+
+    if (allMatched && everyoneElseActed && isBackToAggressor) {
+      console.log(`[LOOP ✅] Advancing loop`);
+      sendTurnInfo(roomCode); // Update UI first
+      setTimeout(() => advanceLoop(room, io, roomCode), 300);
     } else {
       sendTurnInfo(roomCode);
     }
