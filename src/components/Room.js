@@ -17,6 +17,8 @@ function Room({ players, roomCode, isHost }) {
   const [isNextRound, setIsNextRound] = useState(false);
   const [message, setMessage] = useState('');
 
+  const [countdown, setCountdown] = useState(null);
+
   const currentPlayer = players.find(p => p.id === socket.id);
   const chipBalance = currentPlayer?.chipBalance ?? 0;
   const toCall = Math.max(0, betSize);
@@ -49,6 +51,10 @@ function Room({ players, roomCode, isHost }) {
 
     socket.on('deal_hand', (cards) => {
       setHand(cards);
+      setIsNextRound(false);
+      setIsFolded(false);
+      setMessage('');
+      setCountdown(null);
     });
 
     socket.on('update_pot', (newPot) => {
@@ -58,6 +64,39 @@ function Room({ players, roomCode, isHost }) {
     socket.on('round_winner', ({ winnerName, amount }) => {
       setMessage(`All other players folded. ${winnerName} wins ${amount} chips!`);
       setIsNextRound(true);
+
+      // 👇 Start countdown
+      let count = 5;
+      setCountdown(count);
+      const interval = setInterval(() => {
+        count -= 1;
+        if (count <= 0) {
+          clearInterval(interval);
+        }
+        setCountdown(count > 0 ? count : null);
+      }, 1000);
+    });
+
+    socket.on('host_disconnected', () => {
+      setMessage('⚠️ Host disconnected. Game will end in 5 seconds...');
+      setCountdown(5);
+
+      const interval = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return null;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    });
+
+    socket.on('game_ended', () => {
+      setGameStarted(false);
+      setMessage('Game ended.');
+      setCountdown(null);
+      setHand([]);
     });
 
     return () => {
@@ -69,6 +108,8 @@ function Room({ players, roomCode, isHost }) {
       socket.off('deal_hand');
       socket.off('update_pot');
       socket.off('round_winner');
+      socket.off('host_disconnected');
+      socket.off('game_ended');
     };
   }, [socket]);
 
@@ -107,22 +148,21 @@ function Room({ players, roomCode, isHost }) {
     <div className="room">
       <h2>Hello {currentPlayer?.name}. You are in room '{roomCode}'</h2>
 
-      <p style={{ fontWeight: 'bold', color: 'orange' }}>
-        {gameStarted && (isYourTurn
-          ? "🎯 It's your turn!"
-          : currentTurnPlayerName
-            ? `🕒 Waiting for ${currentTurnPlayerName}...`
-            : '')}
-      </p>
-
-      {!gameStarted && isHost && (
-        <button className="btn start-btn" onClick={startGame}>
-          Start Game
-        </button>
-      )}
-
-      {gameStarted ? (
+      {countdown !== null ? (
+        <div style={{ textAlign: 'center', marginTop: '80px' }}>
+          <h1 style={{ fontSize: '60px', color: 'limegreen' }}>Next round in...</h1>
+          <h2 style={{ fontSize: '120px', color: 'orange' }}>{countdown}</h2>
+        </div>
+      ) : gameStarted ? (
         <>
+          <p style={{ fontWeight: 'bold', color: 'orange' }}>
+            {isYourTurn
+              ? "🎯 It's your turn!"
+              : currentTurnPlayerName
+                ? `🕒 Waiting for ${currentTurnPlayerName}...`
+                : ''}
+          </p>
+
           <div className="game-container">
             <div className="poker-table">
               <img src="/poker-table.png" alt="Poker Table" className="table-image" />
@@ -192,6 +232,12 @@ function Room({ players, roomCode, isHost }) {
               </li>
             ))}
           </ul>
+
+          {isHost && (
+            <button className="btn start-btn" onClick={startGame}>
+              Start Game
+            </button>
+          )}
         </div>
       )}
     </div>
