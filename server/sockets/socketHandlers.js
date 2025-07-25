@@ -74,7 +74,7 @@ module.exports = (io, socket) => {
     const player = room.players.find(p => p.id === socket.id);
     if (!player || player.folded) return;
 
-    if (newBetSize % 5 !== 0 || newBetSize <= room.betSize) return;
+    if (newBetSize <= room.betSize) return;
 
     const toCall = room.betSize - player.bet;
     const raiseAmount = newBetSize - room.betSize;

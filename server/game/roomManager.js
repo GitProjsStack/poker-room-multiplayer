@@ -136,6 +136,7 @@ function advanceLoop(room, io, roomCode) {
   room.players.forEach(p => p.bet = 0);
   room.betSize = 0;
   io.to(roomCode).emit('new_loop', room.loopNum);
+  io.to(roomCode).emit('update_bet_size', room.betSize);
 }
 
 function handlePlayerDisconnect(socketId) {

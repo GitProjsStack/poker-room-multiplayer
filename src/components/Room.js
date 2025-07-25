@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState, useRef } from 'react';
 import { SocketContext } from '../context/SocketContext';
 
 const hostDisconnectedMessage = '⚠️ Host disconnected. Please exit the game.';
+const raiseOptions = [1, 5, 10, 20, 50, 100];
 
 function Room({ players, roomCode, isHost }) {
   const socket = useContext(SocketContext);
@@ -152,8 +153,6 @@ function Room({ players, roomCode, isHost }) {
     setErrorMsg('');
   };
 
-  const raiseOptions = [1, 5, 10, 20, 50, 100];
-
   return (
     <div className="room">
       <h2>Hello {currentPlayer?.name}. You are in room '{roomCode}'</h2>
@@ -190,11 +189,13 @@ function Room({ players, roomCode, isHost }) {
                 ))}
               </div>
 
-              Your Chip Balance: {chipBalance}<br />
-              Current Bet Size to Call: {betSize}<br />
-              Amount To Call: {toCall}<br />
-              Total Pot: {pot}<br />
-              Current Betting Round: {loopNum}<br />
+              <p>
+                Your Chip Balance: {chipBalance}<br />
+                Current Bet Size to Call: {betSize}<br />
+                Amount To Call: {toCall}<br />
+                Total Pot: {pot}<br />
+                Current Betting Round: {loopNum}
+              </p>
 
               {message && <p style={{ color: 'limegreen' }}>{message}</p>}
               {errorMsg && <p style={{ color: 'red' }}>{errorMsg}</p>}
