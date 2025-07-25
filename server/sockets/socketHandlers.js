@@ -9,7 +9,7 @@ const {
   removePlayer,
   haveAllActed,
   advanceLoop,
-  } = require('../game/roomManager');
+} = require('../game/roomManager');
 
 module.exports = (io, socket) => {
   socket.on('join_room', (roomCode, playerName) => {
@@ -60,11 +60,18 @@ module.exports = (io, socket) => {
       player.chipBalance -= toCall;
       player.bet += toCall;
       room.pot += toCall;
-
       io.to(roomCode).emit('update_pot', room.pot);
+
+      room.lastAggressorIndex = room.players.findIndex(p => p.id === socket.id);
     }
 
-    updateLoopAndTurn(roomCode, player);
+    player.hasActed = true;
+
+    if (everyoneMatched(room)) {
+      advanceLoop(room, io, roomCode);
+    } else {
+      advanceTurn(roomCode);
+    }
   });
 
   socket.on('raise_bet', (roomCode, newBetSize) => {
@@ -74,26 +81,29 @@ module.exports = (io, socket) => {
     const player = room.players.find(p => p.id === socket.id);
     if (!player || player.folded) return;
 
-    if (newBetSize <= room.betSize) return;
-
     const toCall = room.betSize - player.bet;
     const raiseAmount = newBetSize - room.betSize;
     const totalCost = toCall + raiseAmount;
 
-    if (player.chipBalance >= totalCost) {
-      player.chipBalance -= totalCost;
-      player.bet += totalCost;
-      room.betSize = newBetSize;
-      room.pot += totalCost;
+    if (newBetSize <= room.betSize || player.chipBalance < totalCost) return;
 
-      io.to(roomCode).emit('update_bet_size', newBetSize);
-      io.to(roomCode).emit('update_pot', room.pot);
-    }
+    player.chipBalance -= totalCost;
+    player.bet += totalCost;
+    room.pot += totalCost;
+    room.betSize = newBetSize;
 
-    updateLoopAndTurn(roomCode, player);
+    room.lastAggressorIndex = room.players.findIndex(p => p.id === socket.id);
+
+    io.to(roomCode).emit('update_bet_size', room.betSize);
+    io.to(roomCode).emit('update_pot', room.pot);
+
+    resetHasActed(room);
+    player.hasActed = true;
+
+    advanceTurn(roomCode);
   });
 
-    socket.on('fold', async (roomCode) => {
+  socket.on('fold', async (roomCode) => {
     const room = getRoom(roomCode);
     if (!room) return;
 
@@ -160,9 +170,27 @@ module.exports = (io, socket) => {
     } while (room.players[nextIndex].folded && attempts < room.players.length);
 
     room.currentTurnIndex = nextIndex;
-    io.to(roomCode).emit('room_update', room.players);
 
-    sendTurnInfo(roomCode);
+    const everyoneCalledOrChecked = room.players
+      .filter(p => !p.folded && p.chipBalance > 0)
+      .every(p => p.bet === room.betSize);
+
+    const isBackToAggressor = nextIndex === room.lastAggressorIndex;
+
+    if (everyoneCalledOrChecked && isBackToAggressor) {
+      advanceLoop(room, io, roomCode);
+    } else {
+      sendTurnInfo(roomCode);
+    }
+  }
+
+  function everyoneMatched(room) {
+    const activePlayers = room.players.filter(p => !p.folded);
+    return activePlayers.every(p => p.bet === room.betSize || p.chipBalance === 0 || p.folded || p.hasActed);
+  }
+
+  function resetHasActed(room) {
+    room.players.forEach(p => p.hasActed = false);
   }
 
   function sendTurnInfo(roomCode) {

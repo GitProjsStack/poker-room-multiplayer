@@ -1,5 +1,7 @@
 import React, { useContext, useEffect, useState, useRef } from 'react';
 import { SocketContext } from '../context/SocketContext';
+import PokerGameInProgress from './PokerGameInProgress';
+import GameShowdown from './GameShowdown';
 
 const hostDisconnectedMessage = '⚠️ Host disconnected. Please exit the game.';
 const raiseOptions = [1, 5, 10, 20, 50, 100];
@@ -28,6 +30,8 @@ function Room({ players, roomCode, isHost }) {
   const currentPlayer = players.find(p => p.id === socket.id);
   const chipBalance = currentPlayer?.chipBalance ?? 0;
   const toCall = Math.max(0, betSize);
+
+  const [showdownData, setShowdownData] = useState(null);
 
   useEffect(() => {
     socket.on('game_started', () => {
@@ -61,6 +65,7 @@ function Room({ players, roomCode, isHost }) {
 
     socket.on('deal_hand', (cards) => {
       setHand(cards);
+      setShowdownData(null);
       setIsNextRound(false);
       setIsFolded(false);
       setMessage('');
@@ -107,6 +112,13 @@ function Room({ players, roomCode, isHost }) {
       setCountdown(null);
       setHand([]);
     });
+
+    socket.on('showdown', (data) => {
+      setShowdownData(data);
+      setMessage('Showdown! Here are the cards.');
+      setIsYourTurn(false);
+    });
+
 
     function clearCountdown() {
       if (countdownRef.current) {
@@ -167,94 +179,36 @@ function Room({ players, roomCode, isHost }) {
       {message === hostDisconnectedMessage ? (
         <div style={{ textAlign: 'center', marginTop: '80px' }}>
           <h1 style={{ fontSize: '48px', color: 'red' }}>Host Disconnected</h1>
-          <p style={{ fontSize: '24px', color: 'gray' }}>The game has ended. Please return to the lobby or refresh to join a new game.</p>
+          <p style={{ fontSize: '24px', color: 'gray' }}>
+            The game has ended. Please return to the lobby or refresh to join a new game.
+          </p>
         </div>
       ) : countdown !== null ? (
         <div style={{ textAlign: 'center', marginTop: '80px' }}>
           <h1 style={{ fontSize: '60px', color: 'limegreen' }}>Next round in...</h1>
           <h2 style={{ fontSize: '120px', color: 'orange' }}>{countdown}</h2>
         </div>
+      ) : showdownData ? (
+        <GameShowdown showdownData={showdownData} players={players} />
       ) : gameStarted ? (
-        <>
-          <p style={{ fontWeight: 'bold', color: 'orange' }}>
-            {isYourTurn
-              ? "🎯 It's your turn!"
-              : currentTurnPlayerName
-                ? `🕒 Waiting for ${currentTurnPlayerName}...`
-                : ''}
-          </p>
-
-          <div className="game-container">
-            <div className="poker-table-container">
-              <img src="/poker-table.png" alt="Poker Table" className="table-image" />
-              <div className="community-cards-on-table">
-                {communityCards.map((card) => (
-                  <img
-                    key={card.code}
-                    src={card.image}
-                    alt={card.code}
-                    className="community-card-img"
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="player-info">
-              <div className="hand">
-                {hand.map((card) => (
-                  <img key={card.code} src={card.image} alt={card.code} />
-                ))}
-              </div>
-
-              <p>
-                Your Chip Balance: {chipBalance}<br />
-                Current Bet Size to Call: {betSize}<br />
-                Amount To Call: {toCall}<br />
-                Total Pot: {pot}<br />
-                Current Betting Round: {loopNum}
-              </p>
-
-              {message && <p style={{ color: 'limegreen' }}>{message}</p>}
-              {errorMsg && <p style={{ color: 'red' }}>{errorMsg}</p>}
-            </div>
-          </div>
-
-          <div className="player-actions">
-            <div>
-              <button
-                className="btn btn-red"
-                onClick={fold}
-                disabled={isFolded || isNextRound || !isYourTurn}
-              >
-                Fold
-              </button>
-
-              <button
-                className="btn btn-green"
-                onClick={call}
-                disabled={chipBalance < toCall || isFolded || isNextRound || !isYourTurn}
-              >
-                {toCall === 0 ? 'Check' : `Call ${toCall}`}
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
-              {raiseOptions.map((amt) => {
-                const totalCost = toCall + amt;
-                return (
-                  <button
-                    key={amt}
-                    className="btn btn-blue"
-                    onClick={() => raise(amt)}
-                    disabled={chipBalance < totalCost || isFolded || isNextRound || !isYourTurn}
-                  >
-                    Raise by {amt}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </>
+        <PokerGameInProgress
+          isYourTurn={isYourTurn}
+          currentTurnPlayerName={currentTurnPlayerName}
+          communityCards={communityCards}
+          hand={hand}
+          chipBalance={chipBalance}
+          betSize={betSize}
+          toCall={toCall}
+          pot={pot}
+          loopNum={loopNum}
+          message={message}
+          errorMsg={errorMsg}
+          fold={fold}
+          call={call}
+          raise={raise}
+          isFolded={isFolded}
+          isNextRound={isNextRound}
+        />
       ) : (
         <div>
           <h4>Players:</h4>

@@ -16,6 +16,7 @@ async function createRoom(roomCode, hostId, hostName) {
     loopNum: 0,
     actedPlayerIds: new Set(),
     communityCards: [],
+    lastAggressorIndex: null, // NEW: tracks last raiser
   };
 }
 
@@ -56,11 +57,12 @@ async function startGame(roomCode) {
     room.waitingForInitialCalls = true;
     room.currentTurnIndex = 0;
     room.pot = 0;
-    room.betSize = 2; // initial buy-in
-
+    room.betSize = 2;
+    room.lastAggressorIndex = room.currentTurnIndex; // whoever posts the first forced bet
     room.loopNum = 0;
     room.actedPlayerIds = new Set();
     room.communityCards = [];
+    room.lastAggressorIndex = 0; // Host acts first
 
     return true;
   } catch (err) {
@@ -81,25 +83,24 @@ function roomExists(roomCode) {
   return Boolean(rooms[roomCode]);
 }
 
+function getRoom(roomCode) {
+  return rooms[roomCode];
+}
+
 function removePlayer(socketId, io) {
   for (const roomCode in rooms) {
     const room = rooms[roomCode];
-
     const wasHost = room.players.find(p => p.id === socketId && p.isHost);
     const wasInRoom = room.players.some(p => p.id === socketId);
     if (!wasInRoom) continue;
 
-    // Remove player and their hand
-    room.players = room.players.filter((p) => p.id !== socketId);
+    room.players = room.players.filter(p => p.id !== socketId);
     delete room.hands?.[socketId];
 
-    // Broadcast update
     io.to(roomCode).emit('room_update', room.players);
 
-    // Notify clients if host disconnected
     if (wasHost) {
       io.to(roomCode).emit('host_disconnected');
-
       setTimeout(() => {
         io.to(roomCode).emit('game_ended');
         delete rooms[roomCode];
@@ -107,18 +108,13 @@ function removePlayer(socketId, io) {
       }, 5000);
     }
 
-    // If no players left, clean up
     if (room.players.length === 0) {
-      console.log(`🗑️ Room ${roomCode} deleted (all players left)`);
       delete rooms[roomCode];
+      console.log(`🗑️ Room ${roomCode} deleted (all players left)`);
     }
 
     break;
   }
-}
-
-function getRoom(roomCode) {
-  return rooms[roomCode];
 }
 
 function getActivePlayers(room) {
@@ -133,18 +129,20 @@ function haveAllActed(room) {
 async function advanceLoop(room, io, roomCode) {
   room.loopNum += 1;
   room.actedPlayerIds = new Set();
-  room.players.forEach(p => p.bet = 0);
-  room.betSize = 0;
+  room.players.forEach(p => { p.bet = 0; });
 
-  // Reveal cards
+  if (room.loopNum <= 3) {
+    room.betSize = 0;
+  }
+
+  room.lastAggressorIndex = room.currentTurnIndex;
+
   await revealCommunityCards(room);
 
-  // Emit updated state
   io.to(roomCode).emit('new_loop', room.loopNum);
   io.to(roomCode).emit('update_bet_size', room.betSize);
   io.to(roomCode).emit('update_community_cards', room.communityCards);
 
-  // Optional: handle showdown
   if (room.loopNum >= 4) {
     io.to(roomCode).emit('showdown', {
       communityCards: room.communityCards,
@@ -160,7 +158,6 @@ function handlePlayerDisconnect(socketId) {
     room.players = room.players.filter(p => p.id !== socketId);
     delete room.hands?.[socketId];
 
-    // If everyone has disconnected, clean up the room
     if (room.players.length === 0) {
       delete rooms[roomCode];
       console.log(`🫥 All players disconnected from room ${roomCode}. Game ended.`);

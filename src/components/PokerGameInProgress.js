@@ -1,0 +1,107 @@
+import React from 'react';
+
+const raiseOptions = [1, 5, 10, 20, 50, 100];
+
+function PokerGameInProgress({
+  isYourTurn,
+  currentTurnPlayerName,
+  communityCards,
+  hand,
+  chipBalance,
+  betSize,
+  toCall,
+  pot,
+  loopNum,
+  message,
+  errorMsg,
+  fold,
+  call,
+  raise,
+  isFolded,
+  isNextRound
+}) {
+  return (
+    <>
+      <p style={{ fontWeight: 'bold', color: 'orange' }}>
+        {isYourTurn
+          ? "🎯 It's your turn!"
+          : currentTurnPlayerName
+            ? `🕒 Waiting for ${currentTurnPlayerName}...`
+            : ''}
+      </p>
+
+      <div className="game-container">
+        <div className="poker-table-container">
+          <img src="/poker-table.png" alt="Poker Table" className="table-image" />
+          <div className="community-cards-on-table">
+            {communityCards.map((card) => (
+              <img
+                key={card.code}
+                src={card.image}
+                alt={card.code}
+                className="community-card-img"
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="player-info">
+          <div className="hand">
+            {hand.map((card) => (
+              <img key={card.code} src={card.image} alt={card.code} />
+            ))}
+          </div>
+
+          <p>
+            Your Chip Balance: {chipBalance}<br />
+            Current Bet Size to Call: {betSize}<br />
+            Amount To Call: {toCall}<br />
+            Total Pot: {pot}<br />
+            Current Betting Round: {loopNum}
+          </p>
+
+          {message && <p style={{ color: 'limegreen' }}>{message}</p>}
+          {errorMsg && <p style={{ color: 'red' }}>{errorMsg}</p>}
+        </div>
+      </div>
+
+      <div className="player-actions">
+        <div>
+          <button
+            className="btn btn-red"
+            onClick={fold}
+            disabled={isFolded || isNextRound || !isYourTurn}
+          >
+            Fold
+          </button>
+
+          <button
+            className="btn btn-green"
+            onClick={call}
+            disabled={chipBalance < toCall || isFolded || isNextRound || !isYourTurn}
+          >
+            {toCall === 0 ? 'Check' : `Call ${toCall}`}
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
+          {raiseOptions.map((amt) => {
+            const totalCost = toCall + amt;
+            return (
+              <button
+                key={amt}
+                className="btn btn-blue"
+                onClick={() => raise(amt)}
+                disabled={chipBalance < totalCost || isFolded || isNextRound || !isYourTurn}
+              >
+                Raise by {amt}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default PokerGameInProgress;
