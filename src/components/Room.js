@@ -13,7 +13,6 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
   const [communityCards, setCommunityCards] = useState([]);
 
   const [currentTurnId, setCurrentTurnId] = useState('');
-  const [isYourTurn, setIsYourTurn] = useState(false);
   const [hand, setHand] = useState([]);
   const [error, setError] = useState('');
   const [folded, setFolded] = useState(false);
@@ -23,7 +22,10 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
   const [countdown, setCountdown] = useState(null);
 
   const countdownRef = useRef(null);
+
   const currentPlayer = players.find(p => p.id === socket.id);
+  const isYourTurn = currentTurnId === socket.id;
+  
   const chipBalance = currentPlayer?.chipBalance || 0;
   const toCall = Math.max(0, betSize - (currentPlayer?.bet || 0));
 
@@ -55,11 +57,14 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
       setFolded(false);
     });
 
-    socket.on('new_loop', setLoopNum);
-    socket.on('your_turn', () => setIsYourTurn(true));
+    socket.on('new_loop', (newLoopNum) => {
+      setLoopNum(newLoopNum);
+      setError('');
+      setMessage('');
+    });
+
     socket.on('current_turn', ({ playerId }) => {
       setCurrentTurnId(playerId);
-      setIsYourTurn(playerId === socket.id);
     });
     socket.on('update_bet_size', setBetSize);
     socket.on('update_pot', setPot);
@@ -84,7 +89,6 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
 
     socket.on('showdown', (data) => {
       setShowdownData(data);
-      setIsYourTurn(false);
       setMessage('Showdown! Revealing hands...');
     });
 
@@ -172,7 +176,7 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
           fold={fold}
           call={call}
           raise={raise}
-          isFolded={folded}
+          isNextTurn={folded || !isYourTurn}
         />
       ) : (
         <div>

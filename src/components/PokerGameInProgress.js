@@ -17,17 +17,16 @@ function PokerGameInProgress({
   fold,
   call,
   raise,
-  isFolded,
-  isNextRound
+  isNextTurn
 }) {
   return (
     <>
       <p style={{ fontWeight: 'bold', color: 'orange' }}>
-        {isYourTurn
-          ? "🎯 It's your turn!"
-          : currentTurnPlayerName
-            ? `🕒 Waiting for ${currentTurnPlayerName}...`
-            : ''}
+        {currentTurnPlayerName
+          ? (isYourTurn
+            ? "🎯 It's your turn!"
+            : `🕒 Waiting for ${currentTurnPlayerName}...`)
+          : "Waiting for another player..."}
       </p>
 
       <div className="game-container">
@@ -70,7 +69,7 @@ function PokerGameInProgress({
           <button
             className="btn btn-red"
             onClick={fold}
-            disabled={isFolded || isNextRound || !isYourTurn}
+            disabled={isNextTurn}
           >
             Fold
           </button>
@@ -78,7 +77,7 @@ function PokerGameInProgress({
           <button
             className="btn btn-green"
             onClick={call}
-            disabled={chipBalance < toCall || isFolded || isNextRound || !isYourTurn}
+            disabled={chipBalance < toCall || isNextTurn}
           >
             {toCall === 0 ? 'Check' : `Call ${toCall}`}
           </button>
@@ -92,7 +91,7 @@ function PokerGameInProgress({
                 key={amt}
                 className="btn btn-blue"
                 onClick={() => raise(amt)}
-                disabled={chipBalance < totalCost || isFolded || isNextRound || !isYourTurn}
+                disabled={chipBalance < totalCost || isNextTurn}
               >
                 Raise by {amt}
               </button>
