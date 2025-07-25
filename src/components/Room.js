@@ -1,6 +1,8 @@
 import React, { useContext, useEffect, useState, useRef } from 'react';
 import { SocketContext } from '../context/SocketContext';
 
+const hostDisconnectedMessage = '⚠️ Host disconnected. Please exit the game.';
+
 function Room({ players, roomCode, isHost }) {
   const socket = useContext(SocketContext);
 
@@ -83,7 +85,7 @@ function Room({ players, roomCode, isHost }) {
 
       setGameStarted(false);
       setHand([]);
-      setMessage('⚠️ Host disconnected. Please exit the game.');
+      setMessage(hostDisconnectedMessage);
       setIsFolded(true);
       setIsNextRound(false);
       setCurrentTurnPlayerId('');
@@ -156,7 +158,12 @@ function Room({ players, roomCode, isHost }) {
     <div className="room">
       <h2>Hello {currentPlayer?.name}. You are in room '{roomCode}'</h2>
 
-      {countdown !== null ? (
+      {message === hostDisconnectedMessage ? (
+        <div style={{ textAlign: 'center', marginTop: '80px' }}>
+          <h1 style={{ fontSize: '48px', color: 'red' }}>Host Disconnected</h1>
+          <p style={{ fontSize: '24px', color: 'gray' }}>The game has ended. Please return to the lobby or refresh to join a new game.</p>
+        </div>
+      ) : countdown !== null ? (
         <div style={{ textAlign: 'center', marginTop: '80px' }}>
           <h1 style={{ fontSize: '60px', color: 'limegreen' }}>Next round in...</h1>
           <h2 style={{ fontSize: '120px', color: 'orange' }}>{countdown}</h2>
