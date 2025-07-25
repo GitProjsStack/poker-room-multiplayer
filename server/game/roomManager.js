@@ -129,7 +129,7 @@ function haveAllActed(room) {
 async function advanceLoop(room, io, roomCode) {
   room.loopNum += 1;
   room.actedPlayerIds = new Set();
-  room.players.forEach(p => { p.bet = 0; });
+  room.players.forEach(p => { p.bet = 0; p.hasActed = false;});
 
   if (room.loopNum <= 3) {
     room.betSize = 0;
