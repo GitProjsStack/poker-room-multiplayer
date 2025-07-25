@@ -13,6 +13,9 @@ async function createRoom(roomCode, hostId, hostName) {
     betSize: 0,
     currentTurnIndex: 0,
     waitingForInitialCalls: true,
+    loopNum: 0,
+    actedPlayerIds: new Set(),
+    communityCards: [],
   };
 }
 
@@ -54,6 +57,11 @@ async function startGame(roomCode) {
     room.currentTurnIndex = 0;
     room.pot = 0;
     room.betSize = 2; // initial buy-in
+
+    room.loopNum = 0;
+    room.actedPlayerIds = new Set();
+    room.communityCards = [];
+
     return true;
   } catch (err) {
     console.error('Failed to start game:', err.message);
@@ -73,20 +81,71 @@ function roomExists(roomCode) {
   return Boolean(rooms[roomCode]);
 }
 
-function removePlayer(socketId) {
+function removePlayer(socketId, io) {
   for (const roomCode in rooms) {
     const room = rooms[roomCode];
+
+    const wasInRoom = room.players.some(p => p.id === socketId);
+    if (!wasInRoom) continue;
+
+    // Remove player and their hand
     room.players = room.players.filter((p) => p.id !== socketId);
     delete room.hands?.[socketId];
 
+    // Broadcast update
+    io.to(roomCode).emit('room_update', room.players);
+
+    // If no players left, clean up
     if (room.players.length === 0) {
+      console.log(`🗑️ Room ${roomCode} deleted (all players left)`);
       delete rooms[roomCode];
+    } else if (room.gameStarted && room.players.length > 0) {
+      // If game was in progress and now no one is connected, mark game as not started
+      const connectedPlayers = room.players;
+      if (connectedPlayers.length === 0) {
+        room.gameStarted = false;
+        console.log(`🛑 Game in room ${roomCode} ended (no players left)`);
+        io.to(roomCode).emit('game_ended');
+      }
     }
+
+    break;
   }
 }
 
 function getRoom(roomCode) {
   return rooms[roomCode];
+}
+
+function getActivePlayers(room) {
+  return room.players.filter(p => !p.folded);
+}
+
+function haveAllActed(room) {
+  const activeIds = getActivePlayers(room).map(p => p.id);
+  return activeIds.every(id => room.actedPlayerIds.has(id));
+}
+
+function advanceLoop(room, io, roomCode) {
+  room.loopNum += 1;
+  room.actedPlayerIds = new Set();
+  room.players.forEach(p => p.bet = 0);
+  room.betSize = 0;
+  io.to(roomCode).emit('new_loop', room.loopNum);
+}
+
+function handlePlayerDisconnect(socketId) {
+  for (const roomCode in rooms) {
+    const room = rooms[roomCode];
+    room.players = room.players.filter(p => p.id !== socketId);
+    delete room.hands?.[socketId];
+
+    // If everyone has disconnected, clean up the room
+    if (room.players.length === 0) {
+      delete rooms[roomCode];
+      console.log(`🫥 All players disconnected from room ${roomCode}. Game ended.`);
+    }
+  }
 }
 
 module.exports = {
@@ -96,6 +155,10 @@ module.exports = {
   getPlayerHand,
   getRoomPlayers,
   roomExists,
-  removePlayer,
   getRoom,
+  removePlayer,
+  getActivePlayers,
+  haveAllActed,
+  advanceLoop,
+  handlePlayerDisconnect,
 };

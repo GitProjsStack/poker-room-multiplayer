@@ -5,8 +5,10 @@ const {
   getPlayerHand,
   getRoomPlayers,
   roomExists,
-  removePlayer,
   getRoom,
+  haveAllActed,
+  advanceLoop,
+  handlePlayerDisconnect,
 } = require('../game/roomManager');
 
 module.exports = (io, socket) => {
@@ -62,7 +64,7 @@ module.exports = (io, socket) => {
       io.to(roomCode).emit('update_pot', room.pot);
     }
 
-    advanceTurn(roomCode);
+    updateLoopAndTurn(roomCode, player);
   });
 
   socket.on('raise_bet', (roomCode, newBetSize) => {
@@ -88,7 +90,7 @@ module.exports = (io, socket) => {
       io.to(roomCode).emit('update_pot', room.pot);
     }
 
-    advanceTurn(roomCode);
+    updateLoopAndTurn(roomCode, player);
   });
 
   socket.on('fold', (roomCode) => {
@@ -117,6 +119,11 @@ module.exports = (io, socket) => {
     }
 
     advanceTurn(roomCode);
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`❌ Disconnected: ${socket.id}`);
+    handlePlayerDisconnect(socket.id);
   });
 
   function advanceTurn(roomCode) {
@@ -150,4 +157,18 @@ module.exports = (io, socket) => {
 
     io.to(currentPlayer.id).emit('your_turn');
   }
+
+  function updateLoopAndTurn(roomCode, player) {
+    const room = getRoom(roomCode);
+    if (!room || player.folded) return;
+
+    room.actedPlayerIds.add(player.id);
+
+    if (haveAllActed(room)) {
+      advanceLoop(room, io, roomCode);
+    }
+
+    advanceTurn(roomCode);
+  }
+
 };

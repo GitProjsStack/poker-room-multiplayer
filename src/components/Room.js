@@ -3,7 +3,9 @@ import { SocketContext } from '../context/SocketContext';
 
 function Room({ players, roomCode, isHost }) {
   const socket = useContext(SocketContext);
+
   const [gameStarted, setGameStarted] = useState(false);
+  const [loopNum, setLoopNum] = useState(0);
   const [betSize, setBetSize] = useState(2);
   const [currentTurnPlayerId, setCurrentTurnPlayerId] = useState('');
   const [currentTurnPlayerName, setCurrentTurnPlayerName] = useState('');
@@ -15,8 +17,9 @@ function Room({ players, roomCode, isHost }) {
   const [isNextRound, setIsNextRound] = useState(false);
   const [message, setMessage] = useState('');
 
-  const currentPlayer = players.find((p) => p.id === socket.id);
+  const currentPlayer = players.find(p => p.id === socket.id);
   const chipBalance = currentPlayer?.chipBalance ?? 0;
+  const toCall = Math.max(0, betSize);
 
   useEffect(() => {
     socket.on('game_started', () => {
@@ -24,6 +27,10 @@ function Room({ players, roomCode, isHost }) {
       setIsFolded(false);
       setErrorMsg('');
       setMessage('');
+    });
+
+    socket.on('new_loop', (loop) => {
+      setLoopNum(loop);
     });
 
     socket.on('your_turn', () => {
@@ -55,6 +62,7 @@ function Room({ players, roomCode, isHost }) {
 
     return () => {
       socket.off('game_started');
+      socket.off('new_loop');
       socket.off('your_turn');
       socket.off('current_turn');
       socket.off('update_bet_size');
@@ -75,8 +83,8 @@ function Room({ players, roomCode, isHost }) {
   };
 
   const call = () => {
-    if (chipBalance < betSize) {
-      setErrorMsg("Not enough chips to call.");
+    if (chipBalance < toCall) {
+      setErrorMsg(`You need ${toCall} chips to call, but only have ${chipBalance}.`);
       return;
     }
     socket.emit('call_bet', roomCode);
@@ -84,13 +92,12 @@ function Room({ players, roomCode, isHost }) {
   };
 
   const raise = (amount) => {
-    const totalCost = betSize + amount;
+    const totalCost = toCall + amount;
     if (chipBalance < totalCost) {
-      setErrorMsg(`You need ${totalCost} chips to call + raise ${amount}, but only have ${chipBalance}.`);
+      setErrorMsg(`You need ${totalCost} chips to raise by ${amount}, but only have ${chipBalance}.`);
       return;
     }
-    const newBetSize = betSize + amount;
-    socket.emit('raise_bet', roomCode, newBetSize);
+    socket.emit('raise_bet', roomCode, betSize + amount);
     setErrorMsg('');
   };
 
@@ -104,8 +111,8 @@ function Room({ players, roomCode, isHost }) {
         {gameStarted && (isYourTurn
           ? "🎯 It's your turn!"
           : currentTurnPlayerName
-          ? `🕒 Waiting for ${currentTurnPlayerName}...`
-          : '')}
+            ? `🕒 Waiting for ${currentTurnPlayerName}...`
+            : '')}
       </p>
 
       {!gameStarted && isHost && (
@@ -130,7 +137,9 @@ function Room({ players, roomCode, isHost }) {
 
               Your Chip Balance: {chipBalance}<br />
               Current Bet Size to Call: {betSize}<br />
+              Amount To Call: {toCall}<br />
               Total Pot: {pot}<br />
+              Current Betting Round: {loopNum}<br />
 
               {message && <p style={{ color: 'limegreen' }}>{message}</p>}
               {errorMsg && <p style={{ color: 'red' }}>{errorMsg}</p>}
@@ -146,26 +155,30 @@ function Room({ players, roomCode, isHost }) {
               >
                 Fold
               </button>
+
               <button
                 className="btn btn-green"
                 onClick={call}
-                disabled={chipBalance < betSize || isFolded || isNextRound || !isYourTurn}
+                disabled={chipBalance < toCall || isFolded || isNextRound || !isYourTurn}
               >
-                Call
+                {toCall === 0 ? 'Check' : `Call ${toCall}`}
               </button>
             </div>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
-              {raiseOptions.map((amt) => (
-                <button
-                  key={amt}
-                  className="btn btn-blue"
-                  onClick={() => raise(amt)}
-                  disabled={chipBalance < (betSize + amt) || isFolded || isNextRound || !isYourTurn}
-                >
-                  Raise by {amt}
-                </button>
-              ))}
+              {raiseOptions.map((amt) => {
+                const totalCost = toCall + amt;
+                return (
+                  <button
+                    key={amt}
+                    className="btn btn-blue"
+                    onClick={() => raise(amt)}
+                    disabled={chipBalance < totalCost || isFolded || isNextRound || !isYourTurn}
+                  >
+                    Raise by {amt}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </>
