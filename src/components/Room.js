@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, useRef } from 'react';
 import { SocketContext } from '../context/SocketContext';
 
 function Room({ players, roomCode, isHost }) {
@@ -18,6 +18,7 @@ function Room({ players, roomCode, isHost }) {
   const [message, setMessage] = useState('');
 
   const [countdown, setCountdown] = useState(null);
+  const countdownRef = useRef(null);
 
   const currentPlayer = players.find(p => p.id === socket.id);
   const chipBalance = currentPlayer?.chipBalance ?? 0;
@@ -65,31 +66,30 @@ function Room({ players, roomCode, isHost }) {
       setMessage(`All other players folded. ${winnerName} wins ${amount} chips!`);
       setIsNextRound(true);
 
-      // 👇 Start countdown
       let count = 5;
       setCountdown(count);
-      const interval = setInterval(() => {
+      countdownRef.current = setInterval(() => {
         count -= 1;
         if (count <= 0) {
-          clearInterval(interval);
+          clearInterval(countdownRef.current);
+          countdownRef.current = null;
         }
         setCountdown(count > 0 ? count : null);
       }, 1000);
     });
 
     socket.on('host_disconnected', () => {
-      setMessage('⚠️ Host disconnected. Game will end in 5 seconds...');
-      setCountdown(5);
+      clearCountdown(); // Stop any existing countdowns
 
-      const interval = setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            return null;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+      setGameStarted(false);
+      setHand([]);
+      setMessage('⚠️ Host disconnected. Please exit the game.');
+      setIsFolded(true);
+      setIsNextRound(false);
+      setCurrentTurnPlayerId('');
+      setCurrentTurnPlayerName('');
+      setIsYourTurn(false);
+      setCountdown(null);
     });
 
     socket.on('game_ended', () => {
@@ -98,6 +98,13 @@ function Room({ players, roomCode, isHost }) {
       setCountdown(null);
       setHand([]);
     });
+
+    function clearCountdown() {
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current);
+        countdownRef.current = null;
+      }
+    }
 
     return () => {
       socket.off('game_started');
@@ -110,6 +117,7 @@ function Room({ players, roomCode, isHost }) {
       socket.off('round_winner');
       socket.off('host_disconnected');
       socket.off('game_ended');
+      clearCountdown();
     };
   }, [socket]);
 

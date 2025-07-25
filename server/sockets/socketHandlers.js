@@ -6,10 +6,10 @@ const {
   getRoomPlayers,
   roomExists,
   getRoom,
+  removePlayer,
   haveAllActed,
   advanceLoop,
-  handlePlayerDisconnect,
-} = require('../game/roomManager');
+  } = require('../game/roomManager');
 
 module.exports = (io, socket) => {
   socket.on('join_room', (roomCode, playerName) => {
@@ -144,7 +144,7 @@ module.exports = (io, socket) => {
 
   socket.on('disconnect', () => {
     console.log(`❌ Disconnected: ${socket.id}`);
-    handlePlayerDisconnect(socket.id);
+    removePlayer(socket.id, io);
   });
 
   function advanceTurn(roomCode) {
