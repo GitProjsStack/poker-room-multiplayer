@@ -85,6 +85,7 @@ function removePlayer(socketId, io) {
   for (const roomCode in rooms) {
     const room = rooms[roomCode];
 
+    const wasHost = room.players.find(p => p.id === socketId && p.isHost);
     const wasInRoom = room.players.some(p => p.id === socketId);
     if (!wasInRoom) continue;
 
@@ -95,18 +96,21 @@ function removePlayer(socketId, io) {
     // Broadcast update
     io.to(roomCode).emit('room_update', room.players);
 
+    // Notify clients if host disconnected
+    if (wasHost) {
+      io.to(roomCode).emit('host_disconnected');
+
+      setTimeout(() => {
+        io.to(roomCode).emit('game_ended');
+        delete rooms[roomCode];
+        console.log(`🛑 Room ${roomCode} closed due to host leaving`);
+      }, 5000);
+    }
+
     // If no players left, clean up
     if (room.players.length === 0) {
       console.log(`🗑️ Room ${roomCode} deleted (all players left)`);
       delete rooms[roomCode];
-    } else if (room.gameStarted && room.players.length > 0) {
-      // If game was in progress and now no one is connected, mark game as not started
-      const connectedPlayers = room.players;
-      if (connectedPlayers.length === 0) {
-        room.gameStarted = false;
-        console.log(`🛑 Game in room ${roomCode} ended (no players left)`);
-        io.to(roomCode).emit('game_ended');
-      }
     }
 
     break;

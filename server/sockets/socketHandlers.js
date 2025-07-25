@@ -93,7 +93,7 @@ module.exports = (io, socket) => {
     updateLoopAndTurn(roomCode, player);
   });
 
-  socket.on('fold', (roomCode) => {
+    socket.on('fold', async (roomCode) => {
     const room = getRoom(roomCode);
     if (!room) return;
 
@@ -115,6 +115,27 @@ module.exports = (io, socket) => {
       room.pot = 0;
       io.to(roomCode).emit('update_pot', 0);
       io.to(roomCode).emit('room_update', room.players);
+
+      // Start new round after short delay
+      setTimeout(async () => {
+        const res = await startGame(roomCode);
+        if (res) {
+          const players = getRoomPlayers(roomCode);
+          for (const p of players) {
+            const hand = getPlayerHand(roomCode, p.id);
+            io.to(p.id).emit('deal_hand', hand);
+          }
+
+          const room = getRoom(roomCode);
+          room.loopNum += 1;
+          io.to(roomCode).emit('new_loop', room.loopNum);
+          io.to(roomCode).emit('game_started');
+          io.to(roomCode).emit('room_update', room.players);
+          io.to(roomCode).emit('update_pot', room.pot);
+          sendTurnInfo(roomCode);
+          console.log(`🔄 New round started in room ${roomCode}`);
+        }
+      }, 3000); // Delay for clarity/UI feedback
       return;
     }
 
