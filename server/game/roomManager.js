@@ -130,13 +130,28 @@ function haveAllActed(room) {
   return activeIds.every(id => room.actedPlayerIds.has(id));
 }
 
-function advanceLoop(room, io, roomCode) {
+async function advanceLoop(room, io, roomCode) {
   room.loopNum += 1;
   room.actedPlayerIds = new Set();
   room.players.forEach(p => p.bet = 0);
   room.betSize = 0;
+
+  // Reveal cards
+  await revealCommunityCards(room);
+
+  // Emit updated state
   io.to(roomCode).emit('new_loop', room.loopNum);
   io.to(roomCode).emit('update_bet_size', room.betSize);
+  io.to(roomCode).emit('update_community_cards', room.communityCards);
+
+  // Optional: handle showdown
+  if (room.loopNum >= 4) {
+    io.to(roomCode).emit('showdown', {
+      communityCards: room.communityCards,
+      hands: room.hands,
+      players: room.players,
+    });
+  }
 }
 
 function handlePlayerDisconnect(socketId) {
@@ -150,6 +165,28 @@ function handlePlayerDisconnect(socketId) {
       delete rooms[roomCode];
       console.log(`🫥 All players disconnected from room ${roomCode}. Game ended.`);
     }
+  }
+}
+
+async function revealCommunityCards(room) {
+  const { loopNum, deckId } = room;
+
+  if (loopNum === 1) {
+    const flop = await drawCards(deckId, 3);
+    room.communityCards.push(...flop);
+  } else if (loopNum === 2 || loopNum === 3) {
+    const single = await drawCards(deckId, 1);
+    if (single.length) room.communityCards.push(single[0]);
+  }
+}
+
+async function drawCards(deckId, count) {
+  try {
+    const res = await axios.get(`https://deckofcardsapi.com/api/deck/${deckId}/draw/?count=${count}`);
+    return res.data.cards;
+  } catch (err) {
+    console.error(`Failed to draw ${count} cards:`, err.message);
+    return [];
   }
 }
 

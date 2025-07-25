@@ -10,6 +10,8 @@ function Room({ players, roomCode, isHost }) {
   const [gameStarted, setGameStarted] = useState(false);
   const [loopNum, setLoopNum] = useState(0);
   const [betSize, setBetSize] = useState(2);
+  const [communityCards, setCommunityCards] = useState([]);
+
   const [currentTurnPlayerId, setCurrentTurnPlayerId] = useState('');
   const [currentTurnPlayerName, setCurrentTurnPlayerName] = useState('');
   const [isYourTurn, setIsYourTurn] = useState(false);
@@ -51,6 +53,10 @@ function Room({ players, roomCode, isHost }) {
 
     socket.on('update_bet_size', (newBetSize) => {
       setBetSize(newBetSize);
+    });
+
+    socket.on('update_community_cards', (cards) => {
+      setCommunityCards(cards);
     });
 
     socket.on('deal_hand', (cards) => {
@@ -115,6 +121,7 @@ function Room({ players, roomCode, isHost }) {
       socket.off('your_turn');
       socket.off('current_turn');
       socket.off('update_bet_size');
+      socket.off('update_community_cards');
       socket.off('deal_hand');
       socket.off('update_pot');
       socket.off('round_winner');
@@ -178,8 +185,18 @@ function Room({ players, roomCode, isHost }) {
           </p>
 
           <div className="game-container">
-            <div className="poker-table">
+            <div className="poker-table-container">
               <img src="/poker-table.png" alt="Poker Table" className="table-image" />
+              <div className="community-cards-on-table">
+                {communityCards.map((card) => (
+                  <img
+                    key={card.code}
+                    src={card.image}
+                    alt={card.code}
+                    className="community-card-img"
+                  />
+                ))}
+              </div>
             </div>
 
             <div className="player-info">
