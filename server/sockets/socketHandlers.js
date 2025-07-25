@@ -39,10 +39,7 @@ module.exports = (io, socket) => {
         io.to(player.id).emit('deal_hand', hand);
       }
 
-      const room = getRoom(roomCode);
-      io.to(roomCode).emit('game_started');
-      io.to(roomCode).emit('room_update', room.players);
-      io.to(roomCode).emit('update_pot', room.pot);
+      updateRoom(roomCode);
       sendTurnInfo(roomCode);
       console.log(`🎮 Game started in room ${roomCode}`);
     }
@@ -81,24 +78,31 @@ module.exports = (io, socket) => {
     const player = room.players.find(p => p.id === socket.id);
     if (!player || player.folded) return;
 
-    const toCall = room.betSize - player.bet;
+    const currentBet = player.bet;
+    const callAmount = Math.max(0, room.betSize - currentBet);
     const raiseAmount = newBetSize - room.betSize;
-    const totalCost = toCall + raiseAmount;
+    const totalContribution = callAmount + raiseAmount;
 
-    if (newBetSize <= room.betSize || player.chipBalance < totalCost) return;
+    // Invalid raise: not increasing or can't afford
+    if (raiseAmount <= 0 || player.chipBalance < totalContribution) {
+      return;
+    }
 
-    player.chipBalance -= totalCost;
-    player.bet += totalCost;
-    room.pot += totalCost;
+    // Deduct chips and update pot/bet info
+    player.chipBalance -= totalContribution;
+    player.bet += totalContribution;
+    room.pot += totalContribution;
     room.betSize = newBetSize;
 
     room.lastAggressorIndex = room.players.findIndex(p => p.id === socket.id);
 
-    io.to(roomCode).emit('update_bet_size', room.betSize);
-    io.to(roomCode).emit('update_pot', room.pot);
-
     resetHasActed(room);
     player.hasActed = true;
+
+    // Broadcast updated state
+    io.to(roomCode).emit('update_bet_size', room.betSize);
+    io.to(roomCode).emit('update_pot', room.pot);
+    io.to(roomCode).emit('room_update', room.players); // make sure UI updates chip balances
 
     advanceTurn(roomCode);
   });
@@ -138,14 +142,13 @@ module.exports = (io, socket) => {
 
           const room = getRoom(roomCode);
           room.loopNum += 1;
-          io.to(roomCode).emit('new_loop', room.loopNum);
-          io.to(roomCode).emit('game_started');
-          io.to(roomCode).emit('room_update', room.players);
-          io.to(roomCode).emit('update_pot', room.pot);
+
+          updateRoom(roomCode);
           sendTurnInfo(roomCode);
           console.log(`🔄 New round started in room ${roomCode}`);
         }
-      }, 3000); // Delay for clarity/UI feedback
+      }, 3000);
+
       return;
     }
 
@@ -160,6 +163,8 @@ module.exports = (io, socket) => {
   function advanceTurn(roomCode) {
     const room = getRoom(roomCode);
     if (!room) return;
+
+    io.to(roomCode).emit('room_update', room.players);
 
     let nextIndex = room.currentTurnIndex;
     let attempts = 0;
@@ -186,7 +191,9 @@ module.exports = (io, socket) => {
 
   function everyoneMatched(room) {
     const activePlayers = room.players.filter(p => !p.folded);
-    return activePlayers.every(p => p.bet === room.betSize || p.chipBalance === 0 || p.folded || p.hasActed);
+    return activePlayers.every(p =>
+      p.bet === room.betSize || p.chipBalance === 0 || p.folded || p.hasActed
+    );
   }
 
   function resetHasActed(room) {
@@ -207,17 +214,14 @@ module.exports = (io, socket) => {
     io.to(currentPlayer.id).emit('your_turn');
   }
 
-  function updateLoopAndTurn(roomCode, player) {
+  function updateRoom(roomCode) {
     const room = getRoom(roomCode);
-    if (!room || player.folded) return;
+    if (!room) return;
 
-    room.actedPlayerIds.add(player.id);
-
-    if (haveAllActed(room)) {
-      advanceLoop(room, io, roomCode);
-    }
-
-    advanceTurn(roomCode);
+    io.to(roomCode).emit('new_loop', room.loopNum);
+    io.to(roomCode).emit('game_started');
+    io.to(roomCode).emit('room_update', room.players);
+    io.to(roomCode).emit('update_pot', room.pot);
+    io.to(roomCode).emit('update_bet_size', room.betSize);
   }
-
 };
