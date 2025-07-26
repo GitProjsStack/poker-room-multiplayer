@@ -25,9 +25,9 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
 
   const currentPlayer = players.find(p => p.id === socket.id);
   const isYourTurn = currentTurnId === socket.id;
-  
+
   const chipBalance = currentPlayer?.chipBalance || 0;
-  const toCall = Math.max(0, betSize - (currentPlayer?.bet || 0));
+  const toCall = Math.max(2, betSize - (currentPlayer?.bet || 0));
 
   useEffect(() => {
     const clearCountdown = () => {
@@ -104,6 +104,10 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
       clearCountdown();
     });
 
+    socket.on('action_error', (msg) => {
+      setError(msg);
+    });
+
     return () => {
       socket.off('game_started');
       socket.off('new_loop');
@@ -118,6 +122,7 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
       socket.off('showdown');
       socket.off('host_disconnected');
       socket.off('game_ended');
+      socket.off('action_error');
       clearCountdown();
     };
   }, [socket]);
@@ -131,6 +136,10 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
   };
 
   const call = () => {
+    if (toCall < 2) {
+      setError('You must call at least 2 chips. No checking allowed.');
+      return;
+    }
     if (chipBalance < toCall) {
       setError(`You need ${toCall} chips to call but only have ${chipBalance}.`);
       return;

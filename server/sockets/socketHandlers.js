@@ -50,23 +50,29 @@ module.exports = (io, socket) => {
     if (!room) return;
 
     const player = room.players.find(p => p.id === socket.id);
-    if (!player || player.folded) return;
-
-    if (player.hasActed) {
-      console.log(`[BLOCKED] ${player.name} already acted this loop`);
-      return;
-    }
+    if (!player || player.folded || player.hasActed) return;
 
     const toCall = room.betSize - player.bet;
 
-    if (toCall > 0 && player.chipBalance >= toCall) {
-      player.chipBalance -= toCall;
-      player.bet += toCall;
-      room.pot += toCall;
-      io.to(roomCode).emit('update_pot', room.pot);
+    if (toCall <= 0) {
+      // Enforce: NO CHECKING ALLOWED
+      socket.emit('action_error', 'You must call at least 2 chips or fold.');
+      return;
     }
 
+    if (player.chipBalance < toCall) {
+      socket.emit('action_error', 'Not enough chips to call.');
+      return;
+    }
+
+    player.chipBalance -= toCall;
+    player.bet += toCall;
+    room.pot += toCall;
+
     player.hasActed = true;
+    room.actedPlayerIds.add(player.id);
+
+    io.to(roomCode).emit('update_pot', room.pot);
 
     if (shouldAdvanceLoop(room)) {
       advanceLoop(room, io, roomCode);
@@ -80,31 +86,27 @@ module.exports = (io, socket) => {
     if (!room) return;
 
     const player = room.players.find(p => p.id === socket.id);
-    if (!player || player.folded) return;
-
-    if (player.hasActed) {
-      console.log(`[BLOCKED] ${player.name} already acted this loop`);
-      return;
-    }
+    if (!player || player.folded || player.hasActed) return;
 
     const currentBet = player.bet;
     const callAmount = Math.max(0, room.betSize - currentBet);
     const raiseAmount = newBetSize - room.betSize;
     const totalContribution = callAmount + raiseAmount;
 
-    if (raiseAmount <= 0 || player.chipBalance < totalContribution) return;
+    if (raiseAmount <= 0 || player.chipBalance < totalContribution) {
+      socket.emit('action_error', 'Invalid raise or not enough chips.');
+      return;
+    }
 
-    // Deduct and update state
     player.chipBalance -= totalContribution;
     player.bet += totalContribution;
     room.pot += totalContribution;
     room.betSize = newBetSize;
 
-    // Update last aggressor
     room.lastAggressorIndex = room.players.findIndex(p => p.id === socket.id);
-
     resetHasActed(room);
     player.hasActed = true;
+    room.actedPlayerIds.add(player.id);
 
     io.to(roomCode).emit('update_bet_size', room.betSize);
     io.to(roomCode).emit('update_pot', room.pot);
@@ -118,11 +120,13 @@ module.exports = (io, socket) => {
     if (!room) return;
 
     const player = room.players.find(p => p.id === socket.id);
-    if (!player) return;
+    if (!player || player.folded) return;
 
     player.folded = true;
+    player.hasActed = true;
+    room.actedPlayerIds.add(player.id);
 
-    const remaining = room.players.filter(p => !p.folded);
+    const remaining = getActivePlayers(room);
     if (remaining.length === 1) {
       const winner = remaining[0];
       winner.chipBalance += room.pot;
@@ -173,7 +177,6 @@ module.exports = (io, socket) => {
     let nextIndex = room.currentTurnIndex;
     let attempts = 0;
 
-    // Find next player who is not folded and has chips
     do {
       nextIndex = (nextIndex + 1) % totalPlayers;
       attempts++;
@@ -187,16 +190,12 @@ module.exports = (io, socket) => {
     const activePlayers = getActivePlayers(room);
     const allMatched = activePlayers.every(p => p.bet === room.betSize);
     const isBackToAggressor = nextIndex === room.lastAggressorIndex;
-
-    // 💡 Critical Fix:
-    const everyoneElseActed = activePlayers.every(p => p.hasActed || p.id === room.players[room.lastAggressorIndex].id);
-
-    console.log(`[TURN] ${room.players[nextIndex].name}'s turn`);
-    console.log(`[CHECK] allMatched=${allMatched}, everyoneElseActed=${everyoneElseActed}, backToAggressor=${isBackToAggressor}`);
+    const everyoneElseActed = activePlayers.every(
+      p => p.hasActed || p.id === room.players[room.lastAggressorIndex].id
+    );
 
     if (allMatched && everyoneElseActed && isBackToAggressor) {
-      console.log(`[LOOP ✅] Advancing loop`);
-      sendTurnInfo(roomCode); // Update UI first
+      sendTurnInfo(roomCode);
       setTimeout(() => advanceLoop(room, io, roomCode), 300);
     } else {
       sendTurnInfo(roomCode);
@@ -207,7 +206,6 @@ module.exports = (io, socket) => {
 
   function shouldAdvanceLoop(room) {
     const activePlayers = getActivePlayers(room);
-
     const allMatched = activePlayers.every(p => p.bet === room.betSize);
     const isBackToAggressor = room.currentTurnIndex === room.lastAggressorIndex;
     const aggressorHasActed = room.players[room.lastAggressorIndex]?.hasActed;

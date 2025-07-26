@@ -8,7 +8,6 @@ function PokerGameInProgress({
   communityCards,
   hand,
   chipBalance,
-  betSize,
   toCall,
   pot,
   loopNum,
@@ -76,9 +75,9 @@ function PokerGameInProgress({
           <button
             className="btn btn-green"
             onClick={call}
-            disabled={chipBalance < toCall || isNextTurn}
+            disabled={chipBalance < toCall || toCall < 2 || isNextTurn}
           >
-            {toCall === 0 ? 'Check' : `Call ${toCall}`}
+            Call {toCall}
           </button>
         </div>
 

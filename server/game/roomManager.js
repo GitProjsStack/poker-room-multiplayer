@@ -4,19 +4,27 @@ const rooms = {};
 
 async function createRoom(roomCode, hostId, hostName) {
   rooms[roomCode] = {
-    players: [{ id: hostId, name: hostName, isHost: true, chipBalance: 1000, folded: false, bet: 0 }],
+    players: [{
+      id: hostId,
+      name: hostName,
+      isHost: true,
+      chipBalance: 1000,
+      folded: false,
+      bet: 0,
+      hasActed: false,
+    }],
     gameStarted: false,
     deckId: null,
     hands: {},
     dealerIndex: 0,
     pot: 0,
-    betSize: 0,
+    betSize: 2, // Enforce mandatory 2-chip minimum call
     currentTurnIndex: 0,
     waitingForInitialCalls: true,
     loopNum: 0,
     actedPlayerIds: new Set(),
     communityCards: [],
-    lastAggressorIndex: null, // NEW: tracks last raiser
+    lastAggressorIndex: null,
   };
 }
 
@@ -27,7 +35,15 @@ function joinRoom(roomCode, playerId, playerName) {
 
   const alreadyInRoom = room.players.some(p => p.id === playerId);
   if (!alreadyInRoom) {
-    room.players.push({ id: playerId, name: playerName, isHost: false, chipBalance: 1000, folded: false, bet: 0 });
+    room.players.push({
+      id: playerId,
+      name: playerName,
+      isHost: false,
+      chipBalance: 1000,
+      folded: false,
+      bet: 0,
+      hasActed: false,
+    });
   }
 
   return {};
@@ -51,18 +67,18 @@ async function startGame(roomCode) {
       room.hands[player.id] = [cards[index * 2], cards[index * 2 + 1]];
       player.bet = 0;
       player.folded = false;
+      player.hasActed = false;
     });
 
     room.gameStarted = true;
     room.waitingForInitialCalls = true;
     room.currentTurnIndex = 0;
     room.pot = 0;
-    room.betSize = 2;
-    room.lastAggressorIndex = room.currentTurnIndex; // whoever posts the first forced bet
+    room.betSize = 2; // Enforce minimum call
+    room.lastAggressorIndex = 0;
     room.loopNum = 0;
     room.actedPlayerIds = new Set();
     room.communityCards = [];
-    room.lastAggressorIndex = 0; // Host acts first
 
     return true;
   } catch (err) {
@@ -129,12 +145,16 @@ function haveAllActed(room) {
 async function advanceLoop(room, io, roomCode) {
   room.loopNum += 1;
   room.actedPlayerIds = new Set();
-  room.players.forEach(p => { p.bet = 0; p.hasActed = false;});
 
-  if (room.loopNum <= 3) {
-    room.betSize = 0;
-  }
+  room.players.forEach(p => {
+    p.bet = 0;
+    p.hasActed = false;
+  });
 
+  console.log('>>> advanceLoop called, resetting hasActed and bets');
+
+  // Keep betSize fixed at 2 for all loops (no free check rounds)
+  room.betSize = 2;
   room.lastAggressorIndex = room.currentTurnIndex;
 
   await revealCommunityCards(room);
