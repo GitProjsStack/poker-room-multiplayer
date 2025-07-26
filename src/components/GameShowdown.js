@@ -1,62 +1,77 @@
 import React, { useMemo } from 'react';
-import { evaluateWinners } from '../helpers/evaluatePokerHand';
+import evaluateWinners from '../helpers/evaluatePokerHand';
 
-function GameShowdown({ showdownData, players }) {
-    const evaluatedPlayers = useMemo(() => {
+function convertCardCode(code) {
+    let rank = code.slice(0, code.length - 1);
+    const suit = code.slice(-1).toLowerCase();
+
+    if (rank === '10' || rank === '0') rank = 'T';
+
+    return rank.toUpperCase() + suit;
+}
+
+export default function GameShowdown({ showdownData, players }) {
+    const evaluated = useMemo(() => {
         if (!showdownData) return [];
-        const enrichedPlayers = players.map(p => ({
-            ...p,
-            hand: showdownData.hands[p.id] || []
-        }));
-        return evaluateWinners(enrichedPlayers, showdownData.communityCards);
-    }, [players, showdownData]);
 
-    if (!showdownData) return null;
+        const playersToPassIn = players.map(p => {
+            const combinedCards = [
+                ...(showdownData.hands[p.id] || []),
+                ...showdownData.communityCards
+            ].map(c => convertCardCode(c.code));
 
-    return (
+            return {
+                id: p.id,
+                name: p.name,
+                cards: combinedCards
+            };
+        });
+
+        return evaluateWinners(playersToPassIn);
+    }, [showdownData, players]);
+
+    return showdownData ? (
         <div className="showdown-container">
-            <h1>-----------------------------------------------------------------------------------</h1>
-            <h2>🔥 Showdown Time!</h2>
+            <h2>🔥 Showdown!</h2>
 
-            <div className="community-cards-on-table">
-                {showdownData.communityCards.map(card => (
+            {/* COMMUNITY CARDS ROW */}
+            <div className="community-cards-row">
+                {showdownData.communityCards.map(c => (
                     <img
-                        key={card.code}
-                        src={card.image}
-                        alt={card.code}
+                        key={c.code}
+                        src={c.image}
+                        alt={c.code}
                         className="community-card-img"
                     />
                 ))}
             </div>
 
-            <div className="players-hands">
-                {evaluatedPlayers.map(player => (
+            {/* PLAYERS CARDS ROW */}
+            <div className="players-cards-row">
+                {evaluated.map(p => (
                     <div
-                        key={player.playerId}
-                        className={`player-hand-showdown ${player.isWinner ? 'winner' : ''}`}
+                        key={p.playerId}
+                        className={`player-hand ${p.isWinner ? 'winner' : ''}`}
                     >
-                        <p>
-                            {player.name}'s Hand
-                            {player.isWinner && ' 🏆 Winner!'}
-                        </p>
                         <div>
-                            {player.hand.cards.map(card => (
+                            <p>
+                                {p.name} got a {p.handName}.
+                            </p>
+                            {p.isWinner && <p style={{ marginTop: 0, color: 'lime', fontWeight: 'bold' }}> 🏆WINNER🏆</p>}
+                        </div>
+                        <div className="player-cards">
+                            {(showdownData.hands[p.playerId] || []).map(c => (
                                 <img
-                                    key={card.code}
-                                    src={card.image}
-                                    alt={card.code}
+                                    key={c.code}
+                                    src={c.image}
+                                    alt={c.code}
                                     className="player-hand-card"
                                 />
                             ))}
                         </div>
-                        <p style={{ fontSize: '14px', color: '#ccc' }}>
-                            Combination: {player.hand.name}
-                        </p>
                     </div>
                 ))}
             </div>
         </div>
-    );
+    ) : null;
 }
-
-export default GameShowdown;
