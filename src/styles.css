@@ -1,16 +1,17 @@
 body {
   margin: 0;
+  padding: 0;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background-color: #1e1e1e;
   color: white;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
 }
 
 .App {
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
 }
 
 input, button {
@@ -152,32 +153,62 @@ button:disabled {
 .showdown-container {
   text-align: center;
   margin-top: 40px;
+  padding: 0 20px;
+  max-width: 1000px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
 }
 
-.community-cards-on-table {
+/* COMMUNITY CARDS: single centered row */
+.community-cards-row {
   display: flex;
   justify-content: center;
-  gap: 10px;
-  margin-top: 20px;
-  margin-bottom: 30px;
+  gap: 12px;
+  flex-wrap: nowrap;
 }
 
-.players-hands {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  align-items: center;
-  max-height: 400px;
-  overflow-y: auto;
+.community-card-img {
+  width: 80px;
+  height: auto;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
 }
 
-.player-hand-showdown {
+/* PLAYERS CARDS: horizontal row, each player side by side */
+.players-cards-row {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  flex-wrap: nowrap;
+  overflow-x: auto; /* optional: horizontal scroll if too many players */
+  padding-bottom: 10px;
+}
+
+.player-hand {
   display: flex;
   flex-direction: column;
   align-items: center;
+  min-width: 120px;
+}
+
+.player-hand.winner {
+  border: 2px solid gold;
+  box-shadow: 0 0 10px gold;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.player-cards {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .player-hand-card {
-  width: 80px;
-  margin: 0 5px;
+  width: 60px;
+  height: auto;
+  border-radius: 4px;
+  box-shadow: 0 0 5px rgba(0,0,0,0.3);
 }
