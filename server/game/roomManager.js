@@ -151,8 +151,6 @@ async function advanceLoop(room, io, roomCode) {
     p.hasActed = false;
   });
 
-  console.log('>>> advanceLoop called, resetting hasActed and bets');
-
   // Keep betSize fixed at 2 for all loops (no free check rounds)
   room.betSize = 2;
   room.lastAggressorIndex = room.currentTurnIndex;

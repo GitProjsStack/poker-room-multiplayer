@@ -115,6 +115,18 @@ module.exports = (io, socket) => {
     advanceTurn(roomCode);
   });
 
+  socket.on('force_fold_others', (roomCode, winnerId) => {
+    const room = getRoom(roomCode);
+    if (!room) return;
+
+    // For every player except winner, simulate a fold
+    room.players.forEach(p => {
+      if (p.id !== winnerId && !p.folded) {
+        io.to(p.id).emit('force_fold', roomCode);
+      }
+    });
+  });
+
   socket.on('fold', async (roomCode) => {
     const room = getRoom(roomCode);
     if (!room) return;
