@@ -15,7 +15,6 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
   const [currentTurnId, setCurrentTurnId] = useState('');
   const [hand, setHand] = useState([]);
   const [error, setError] = useState('');
-  const [folded, setFolded] = useState(false);
   const [pot, setPot] = useState(0);
   const [showdownData, setShowdownData] = useState(null);
   const [message, setMessage] = useState('');
@@ -24,6 +23,7 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
   const countdownRef = useRef(null);
 
   const currentPlayer = players.find(p => p.id === socket.id);
+  const folded = currentPlayer?.folded || false;
   const isYourTurn = currentTurnId === socket.id;
 
   const chipBalance = currentPlayer?.chipBalance || 0;
@@ -54,7 +54,6 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
     socket.on('game_started', () => {
       setGameStarted(true);
       setMessage('');
-      setFolded(false);
     });
 
     socket.on('new_loop', (newLoopNum) => {
@@ -72,15 +71,20 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
 
     socket.on('deal_hand', (cards) => {
       setHand(cards);
-      setFolded(false);
       setError('');
       setMessage('');
       setShowdownData(null);
     });
 
-    socket.on('round_winner', ({ winnerName, amount }) => {
-      setMessage(`${winnerName} wins ${amount} chips by default!`);
-      startCountdown();
+    socket.on('round_winner', ({ winnerName, amount, reason }) => {
+      const msg = reason
+        ? `${reason} ${winnerName} wins ${amount} chips.`
+        : `${winnerName} wins ${amount} chips.`;
+      setMessage(msg);
+    });
+
+    socket.on('player_folded', ({ name }) => {
+      setMessage(`${name} folded.`);
     });
 
     socket.on('room_update', (updatedPlayers) => {
@@ -118,6 +122,7 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
       socket.off('update_community_cards');
       socket.off('deal_hand');
       socket.off('round_winner');
+      socket.off('player_folded');
       socket.off('room_update');
       socket.off('showdown');
       socket.off('host_disconnected');
@@ -130,7 +135,6 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
   const startGame = () => socket.emit('start_game', roomCode);
 
   const fold = () => {
-    setFolded(true);
     setError('');
     socket.emit('fold', roomCode);
   };

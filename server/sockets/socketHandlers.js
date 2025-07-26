@@ -126,7 +126,10 @@ module.exports = (io, socket) => {
     player.hasActed = true;
     room.actedPlayerIds.add(player.id);
 
+    io.to(roomCode).emit('player_folded', { name: player.name });
+
     const remaining = getActivePlayers(room);
+
     if (remaining.length === 1) {
       const winner = remaining[0];
       winner.chipBalance += room.pot;
@@ -134,12 +137,14 @@ module.exports = (io, socket) => {
       io.to(roomCode).emit('round_winner', {
         winnerName: winner.name,
         amount: room.pot,
+        reason: 'All other players folded.'
       });
 
       room.pot = 0;
       io.to(roomCode).emit('update_pot', 0);
       io.to(roomCode).emit('room_update', room.players);
 
+      // Start new round after delay
       setTimeout(async () => {
         const success = await startGame(roomCode);
         if (success) {
@@ -157,6 +162,7 @@ module.exports = (io, socket) => {
       return;
     }
 
+    // Continue normal turn flow if more than 1 player left
     if (shouldAdvanceLoop(room)) {
       advanceLoop(room, io, roomCode);
     } else {
