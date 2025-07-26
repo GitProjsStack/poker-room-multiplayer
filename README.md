@@ -6,10 +6,42 @@
   A real-time multiplayer poker game built with <strong>React</strong> and <strong>Socket.IO</strong>, supporting live betting, chip tracking, folding logic, and automatic showdown evaluation.
 </p>
 
-<p style="text-align: center;">
-  <strong>Live Demo:</strong><br/>
-  <a href="https://multiplayer-poker-gitprojsstack.netlify.app" target="_blank" rel="noopener noreferrer">https://multiplayer-poker-gitprojsstack.netlify.app</a>
-</p>
+<hr/>
+
+<div style="text-align: center;">
+  <h2>Installation &amp; Running Locally</h2>
+</div>
+
+<p>To install and run the project locally, follow these steps:</p>
+
+<pre style="background: #f4f4f4; padding: 1rem; border-radius: 5px; overflow-x: auto;">
+git clone https://github.com/GitProjsStack/poker-room-multiplayer.git
+# Assuming you are at the root of the project -> ...\poker-room-multiplayer>
+cd server
+npm install
+cd ..
+npm install
+</pre>
+
+<p>Then start the server by running:</p>
+
+<pre style="background: #f4f4f4; padding: 1rem; border-radius: 5px; overflow-x: auto;">
+node server/index.js
+</pre>
+
+<p>Wait until you see the message:</p>
+
+<p><em>✅ Server running on http://localhost:xxxx (usually 3001)</em></p>
+
+<p>Next, start the client UI with:</p>
+
+<pre style="background: #f4f4f4; padding: 1rem; border-radius: 5px; overflow-x: auto;">
+npm start
+</pre>
+
+<p>This will open the client at <code>http://localhost:3000</code>.</p>
+
+<p>Each player should open their own browser tab at <code>localhost:3000</code> to join the game and start playing.</p>
 
 <hr/>
 
