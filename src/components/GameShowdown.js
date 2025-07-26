@@ -1,6 +1,16 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { evaluateWinners } from '../helpers/evaluatePokerHand';
 
 function GameShowdown({ showdownData, players }) {
+    const evaluatedPlayers = useMemo(() => {
+        if (!showdownData) return [];
+        const enrichedPlayers = players.map(p => ({
+            ...p,
+            hand: showdownData.hands[p.id] || []
+        }));
+        return evaluateWinners(enrichedPlayers, showdownData.communityCards);
+    }, [players, showdownData]);
+
     if (!showdownData) return null;
 
     return (
@@ -20,11 +30,17 @@ function GameShowdown({ showdownData, players }) {
             </div>
 
             <div className="players-hands">
-                {players.map(player => (
-                    <div key={player.id} className="player-hand-showdown">
-                        <p>{player.name}'s Hand:</p>
+                {evaluatedPlayers.map(player => (
+                    <div
+                        key={player.playerId}
+                        className={`player-hand-showdown ${player.isWinner ? 'winner' : ''}`}
+                    >
+                        <p>
+                            {player.name}'s Hand
+                            {player.isWinner && ' 🏆 Winner!'}
+                        </p>
                         <div>
-                            {(showdownData.hands[player.id] || []).map(card => (
+                            {player.hand.cards.map(card => (
                                 <img
                                     key={card.code}
                                     src={card.image}
@@ -33,6 +49,9 @@ function GameShowdown({ showdownData, players }) {
                                 />
                             ))}
                         </div>
+                        <p style={{ fontSize: '14px', color: '#ccc' }}>
+                            Combination: {player.hand.name}
+                        </p>
                     </div>
                 ))}
             </div>
