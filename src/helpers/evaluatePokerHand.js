@@ -1,24 +1,24 @@
-import evaluateHand from 'poker-hand-evaluator';
+import PokerHand from 'poker-hand-evaluator';
 
-export function evaluateWinners(players, communityCards) {
-  const hands = players.map(player => {
-    const fullHand = [...(player.hand || []), ...communityCards].map(card => ({
-      value: card.code[0],
-      suit: card.code[1].toUpperCase()
-    }));
-    
+export default function evaluateWinners(players) {
+  const results = players.map(player => {
+    // Here, player.hand is a **space-separated string** of cards like "AD 3C AS 8C 8H 7H 4S"
+    const evalObj = new PokerHand(player.hand);
+
     return {
       playerId: player.id,
       name: player.name,
-      handEval: evaluateHand(fullHand),
+      rankScore: evalObj.getScore(),
+      rankName: evalObj.getRank(),
+      handName: evalObj.handName,
     };
   });
 
-  const bestRank = Math.min(...hands.map(h => h.handEval.rank));
-  const winners = hands.filter(h => h.handEval.rank === bestRank);
+  const bestScore = Math.min(...results.map(r => r.rankScore));
+  const winners = results.filter(r => r.rankScore === bestScore);
 
-  return hands.map(h => ({
-    ...h,
-    isWinner: winners.some(w => w.playerId === h.playerId)
+  return results.map(r => ({
+    ...r,
+    isWinner: winners.some(w => w.playerId === r.playerId),
   }));
 }
