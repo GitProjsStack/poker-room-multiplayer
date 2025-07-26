@@ -53,7 +53,6 @@ function PokerGameInProgress({
 
           <p>
             Your Chip Balance: {chipBalance}<br />
-            Current Bet Size to Call: {betSize}<br />
             Amount To Call: {toCall}<br />
             Total Pot: {pot}<br />
             Current Betting Round: {loopNum}
