@@ -1,24 +1,22 @@
-import PokerHand from 'poker-hand-evaluator';
+import { Hand } from 'pokersolver';
 
 export default function evaluateWinners(players) {
-  const results = players.map(player => {
-    // Here, player.hand is a **space-separated string** of cards like "AD 3C AS 8C 8H 7H 4S"
-    const evalObj = new PokerHand(player.hand);
-
+  const handsWithEval = players.map(player => {
+    const hand = Hand.solve(player.cards); // array of strings like ['Ad', 'Ks', ...]
+    
     return {
       playerId: player.id,
       name: player.name,
-      rankScore: evalObj.getScore(),
-      rankName: evalObj.getRank(),
-      handName: evalObj.handName,
+      rankName: hand.name,
+      handName: hand.descr,
+      solvedHand: hand
     };
   });
 
-  const bestScore = Math.min(...results.map(r => r.rankScore));
-  const winners = results.filter(r => r.rankScore === bestScore);
+  const winningHands = Hand.winners(handsWithEval.map(p => p.solvedHand));
 
-  return results.map(r => ({
-    ...r,
-    isWinner: winners.some(w => w.playerId === r.playerId),
+  return handsWithEval.map(p => ({
+    ...p,
+    isWinner: winningHands.includes(p.solvedHand)
   }));
 }
