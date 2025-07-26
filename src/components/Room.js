@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState, useRef } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { SocketContext } from '../context/SocketContext';
 import PokerGameInProgress from './PokerGameInProgress';
 import GameShowdown from './GameShowdown';
@@ -18,9 +18,6 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
   const [pot, setPot] = useState(0);
   const [showdownData, setShowdownData] = useState(null);
   const [message, setMessage] = useState('');
-  const [countdown, setCountdown] = useState(null);
-
-  const countdownRef = useRef(null);
 
   const currentPlayer = players.find(p => p.id === socket.id);
   const folded = currentPlayer?.folded || false;
@@ -30,26 +27,6 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
   const toCall = Math.max(2, betSize - (currentPlayer?.bet || 0));
 
   useEffect(() => {
-    const clearCountdown = () => {
-      if (countdownRef.current) {
-        clearInterval(countdownRef.current);
-        countdownRef.current = null;
-      }
-    };
-
-    const startCountdown = (duration = 5) => {
-      let count = duration;
-      setCountdown(count);
-      countdownRef.current = setInterval(() => {
-        count -= 1;
-        if (count <= 0) {
-          clearCountdown();
-          setCountdown(null);
-        } else {
-          setCountdown(count);
-        }
-      }, 1000);
-    };
 
     socket.on('game_started', () => {
       setGameStarted(true);
@@ -83,6 +60,10 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
       setMessage(msg);
     });
 
+    socket.on('force_fold', (roomCode) => {
+      socket.emit('fold', roomCode);
+    });
+
     socket.on('player_folded', ({ name }) => {
       setMessage(`${name} folded.`);
     });
@@ -99,13 +80,11 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
     socket.on('host_disconnected', () => {
       setGameStarted(false);
       setMessage('⚠️ Host disconnected. Game ended.');
-      clearCountdown();
     });
 
     socket.on('game_ended', () => {
       setGameStarted(false);
       setMessage('Game ended.');
-      clearCountdown();
     });
 
     socket.on('action_error', (msg) => {
@@ -122,13 +101,13 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
       socket.off('update_community_cards');
       socket.off('deal_hand');
       socket.off('round_winner');
+      socket.off('force_fold');
       socket.off('player_folded');
       socket.off('room_update');
       socket.off('showdown');
       socket.off('host_disconnected');
       socket.off('game_ended');
       socket.off('action_error');
-      clearCountdown();
     };
   }, [socket]);
 
@@ -166,13 +145,12 @@ function Room({ players: initialPlayers, roomCode, isHost }) {
     <div className="room">
       <h2>Hello {currentPlayer?.name}, you're in room '{roomCode}'</h2>
 
-      {countdown !== null ? (
-        <div className="countdown">
-          <h1>Next round in</h1>
-          <h2>{countdown}</h2>
-        </div>
-      ) : showdownData ? (
-        <GameShowdown showdownData={showdownData} players={players} />
+      {showdownData ? (
+        <GameShowdown 
+        showdownData={showdownData} 
+        players={players}
+        roomCode={roomCode}
+        />
       ) : gameStarted ? (
         <PokerGameInProgress
           isYourTurn={isYourTurn}

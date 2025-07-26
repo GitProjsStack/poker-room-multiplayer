@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import { useMemo, useEffect, useContext } from 'react';
 import evaluateWinners from '../helpers/evaluatePokerHand';
+import { SocketContext } from '../context/SocketContext';
 
 function convertCardCode(code) {
     let rank = code.slice(0, code.length - 1);
@@ -10,7 +11,9 @@ function convertCardCode(code) {
     return rank.toUpperCase() + suit;
 }
 
-export default function GameShowdown({ showdownData, players }) {
+export default function GameShowdown({ showdownData, players, roomCode }) {
+    const socket = useContext(SocketContext);
+
     const evaluated = useMemo(() => {
         if (!showdownData) return [];
 
@@ -30,7 +33,23 @@ export default function GameShowdown({ showdownData, players }) {
         return evaluateWinners(playersToPassIn);
     }, [showdownData, players]);
 
-    return showdownData ? (
+    useEffect(() => {
+        if (showdownData && evaluated.length > 0) {
+            const winner = evaluated.find(p => p.isWinner);
+
+            const timer = setTimeout(() => {
+                if (winner) {
+                    socket.emit('force_fold_others', roomCode, winner.playerId);
+                }
+            }, 2000); // 2 seconds after showdown
+
+            return () => clearTimeout(timer);
+        }
+    }, [showdownData, evaluated, socket, roomCode]);
+
+    if (!showdownData) return null;
+
+    return (
         <div className="showdown-container">
             <h2>🔥 Showdown!</h2>
 
@@ -54,10 +73,12 @@ export default function GameShowdown({ showdownData, players }) {
                         className={`player-hand ${p.isWinner ? 'winner' : ''}`}
                     >
                         <div>
-                            <p>
-                                {p.name} got a {p.handName}.
-                            </p>
-                            {p.isWinner && <p style={{ marginTop: 0, color: 'lime', fontWeight: 'bold' }}> 🏆WINNER🏆</p>}
+                            <p>{p.name} got a {p.handName}.</p>
+                            {p.isWinner && (
+                                <p style={{ marginTop: 0, color: 'lime', fontWeight: 'bold' }}>
+                                    🏆WINNER🏆
+                                </p>
+                            )}
                         </div>
                         <div className="player-cards">
                             {(showdownData.hands[p.playerId] || []).map(c => (
@@ -73,5 +94,5 @@ export default function GameShowdown({ showdownData, players }) {
                 ))}
             </div>
         </div>
-    ) : null;
+    );
 }
