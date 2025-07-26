@@ -153,6 +153,9 @@ module.exports = (io, socket) => {
             const hand = getPlayerHand(roomCode, p.id);
             io.to(p.id).emit('deal_hand', hand);
           }
+          // Clear community cards on clients for new round:
+          io.to(roomCode).emit('update_community_cards', []);
+
           updateRoom(roomCode);
           sendTurnInfo(roomCode);
           console.log(`🔄 New round started in room ${roomCode}`);
